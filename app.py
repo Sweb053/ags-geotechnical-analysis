@@ -1482,14 +1482,14 @@ def render_spt_module(parsed, spt: pd.DataFrame) -> None:
     )
     if value_mode == "Corrected N60":
         spt_value_column = "ISPT_N60_NUM"
-        spt_value_label = "Corrected SPT N60 (ISPT_MAIN x ISPT_ERAT / 60)"
+        spt_value_label = "Corrected SPT N60"
         spt_title_value = "Corrected SPT N60"
         corrected_count = int(spt[spt_value_column].notna().sum()) if spt_value_column in spt.columns else 0
         if corrected_count == 0:
             st.warning("No corrected N60 values are available because `ISPT_ERAT` is missing or non-numeric.")
     else:
         spt_value_column = "ISPT_MAIN_NUM"
-        spt_value_label = "SPT blow count, N (ISPT_MAIN)"
+        spt_value_label = "SPT blow count, N"
         spt_title_value = "SPT Blow Count"
 
     selected_loca, geology_mode, selected_units, selected_materials, selected_model_units, selected_bedrock = render_filters(spt, "SPT records")
@@ -1689,7 +1689,7 @@ def render_atterberg_module(parsed, atterberg: pd.DataFrame) -> None:
         render_atterberg_pair(
             filtered_by_unit,
             value_column="LLPL_LL_NUM",
-            value_label="Liquid limit, LL (%) (LLPL_LL)",
+            value_label="Liquid limit, LL (%)",
             title_prefix="Liquid Limit",
         )
 
@@ -1697,7 +1697,7 @@ def render_atterberg_module(parsed, atterberg: pd.DataFrame) -> None:
         render_atterberg_pair(
             filtered_by_unit,
             value_column="LLPL_PL_NUM",
-            value_label="Plastic limit, PL (%) (LLPL_PL)",
+            value_label="Plastic limit, PL (%)",
             title_prefix="Plastic Limit",
         )
 
@@ -2063,36 +2063,22 @@ def render_psd_module(parsed, psd: pd.DataFrame) -> None:
 def render_filters(data: pd.DataFrame, record_label: str) -> tuple[list[str], str, list[str], list[str], list[str], list[str]]:
     st.subheader("Filters")
     loca_ids = sorted(data["LOCA_ID"].dropna().unique())
-    units = sorted(data["GEOL_GEOL"].fillna("Unmatched").unique())
     material_classes = sorted(data["MATERIAL_CLASS"].dropna().unique()) if "MATERIAL_CLASS" in data.columns else []
     model_units = sorted(data["MODEL_UNIT"].dropna().unique()) if "MODEL_UNIT" in data.columns else []
     bedrock_types = sorted(data["BEDROCK_TYPE"].dropna().unique()) if "BEDROCK_TYPE" in data.columns else []
 
-    filter_col_1, filter_col_2 = st.columns([1.4, 1])
-    with filter_col_1:
-        investigation_mode = st.radio(
-            "Investigation filter",
-            ["All investigations", "Choose investigations"],
-            horizontal=True,
-        )
-        if investigation_mode == "All investigations":
-            selected_loca = loca_ids
-        else:
-            selected_loca = st.multiselect(f"Investigations with valid {record_label}", loca_ids, default=[])
+    investigation_mode = st.radio(
+        "Investigation filter",
+        ["All investigations", "Choose investigations"],
+        horizontal=True,
+    )
+    if investigation_mode == "All investigations":
+        selected_loca = loca_ids
+    else:
+        selected_loca = st.multiselect(f"Investigations with valid {record_label}", loca_ids, default=[])
 
-    with filter_col_2:
-        geology_mode = st.radio(
-            "Geology filter",
-            ["All geology", "Include selected"],
-            horizontal=True,
-        )
-        selected_units = []
-        if geology_mode == "Include selected":
-            selected_units = st.multiselect(
-                "Geological units",
-                units,
-                default=default_geology_selection(units, geology_mode),
-            )
+    geology_mode = "All geology"
+    selected_units: list[str] = []
 
     material_col_1, material_col_2, material_col_3 = st.columns(3)
     with material_col_1:
@@ -2245,7 +2231,7 @@ def render_spt_plot(
     title: str,
     color_by: str,
     x_column: str = "ISPT_MAIN_NUM",
-    x_label: str = "SPT blow count, N (ISPT_MAIN)",
+    x_label: str = "SPT blow count, N",
 ) -> None:
     render_depth_scatter_plot(
         data=data,
@@ -2269,7 +2255,7 @@ def render_ivan_plot(
         color_by=color_by,
         x_column="IVAN_IVAN_NUM",
         y_column="IVAN_DPTH_NUM",
-        x_label="Hand shear vane reading (IVAN_IVAN)",
+        x_label="Hand shear vane reading",
         y_label="Depth below ground level (m)",
     )
 
@@ -2285,7 +2271,7 @@ def render_ucs_plot(
         color_by=color_by,
         x_column="RUCS_UCS_NUM",
         y_column="SAMP_TOP_NUM",
-        x_label="Unconfined compressive strength (RUCS_UCS)",
+        x_label="Unconfined compressive strength",
         y_label="Sample top depth below ground level (m)",
     )
 
@@ -2301,7 +2287,7 @@ def render_rqd_plot(
         color_by=color_by,
         x_column="CORE_RQD_NUM",
         y_column="CORE_TOP_NUM",
-        x_label="Rock quality designation, RQD (%) (CORE_RQD)",
+        x_label="Rock quality designation, RQD (%)",
         y_label="Core run top depth below ground level (m)",
     )
 
@@ -2317,7 +2303,7 @@ def render_pointload_plot(
         color_by=color_by,
         x_column="RPLT_PLSI_NUM",
         y_column="POINTLOAD_DEPTH_NUM",
-        x_label="Point load strength index, Is50 (RPLT_PLSI)",
+        x_label="Point load strength index, Is50",
         y_label="Depth below ground level (m)",
     )
 
@@ -2327,14 +2313,20 @@ def render_groundwater_plot(
     title: str,
     color_by: str,
 ) -> None:
+    plot_data = data.copy()
+    loca_ids = sorted(plot_data["LOCA_ID"].dropna().unique())
+    tick_labels = {index + 1: loca_id for index, loca_id in enumerate(loca_ids)}
+    loca_to_plot_num = {loca_id: index for index, loca_id in tick_labels.items()}
+    plot_data["GROUNDWATER_PLOT_NUM"] = plot_data["LOCA_ID"].map(loca_to_plot_num)
     render_depth_scatter_plot(
-        data=data,
+        data=plot_data,
         title=title,
         color_by=color_by,
         x_column="GROUNDWATER_PLOT_NUM",
         y_column="WSTG_DPTH_NUM",
-        x_label="Investigation order",
+        x_label="Investigation",
         y_label="Groundwater strike depth below ground level (m)",
+        x_tick_labels=tick_labels,
     )
 
 
@@ -2943,6 +2935,7 @@ def render_depth_scatter_plot(
     y_column: str,
     x_label: str,
     y_label: str,
+    x_tick_labels: dict[int, str] | None = None,
 ) -> None:
     if data.empty:
         st.warning("No records match the current filters.")
@@ -2971,6 +2964,7 @@ def render_depth_scatter_plot(
         x_label,
         y_label,
         design_line if show_design_line else "Off",
+        x_tick_labels,
     )
     st.image(
         png_bytes,
@@ -3005,6 +2999,7 @@ def build_depth_scatter_png(
     x_label: str,
     y_label: str,
     design_line: str = "Off",
+    x_tick_labels: dict[int, str] | None = None,
 ) -> bytes:
     fig, ax = plt.subplots(figsize=(8.2, 5.8), dpi=150)
     fig.patch.set_facecolor("white")
@@ -3055,6 +3050,11 @@ def build_depth_scatter_png(
     ax.set_title(title, fontsize=11, weight="semibold", color="#222222", pad=10)
     ax.set_xlabel(x_label, fontsize=10, color="#333333")
     ax.set_ylabel(y_label, fontsize=10, color="#333333")
+    if x_tick_labels:
+        ticks = sorted(x_tick_labels)
+        rotation = 90 if len(ticks) > 24 else 45
+        ax.set_xticks(ticks)
+        ax.set_xticklabels([x_tick_labels[tick] for tick in ticks], rotation=rotation, ha="right")
     ax.tick_params(axis="both", colors="#444444", labelsize=9)
     ax.grid(True, which="major", color="#d8d8d8", linewidth=0.7)
     ax.grid(True, which="minor", color="#eeeeee", linewidth=0.45)
