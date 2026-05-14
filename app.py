@@ -130,74 +130,102 @@ def inject_custom_css() -> None:
         f"""
         <style>
         :root {{
-            --ags-navy: {UI_NAVY};
+            --ags-navy: #3a3a3a;
             --ags-white: {UI_WHITE};
-            --ags-panel: {UI_PANEL};
-            --ags-line: {UI_LINE};
-            --ags-ink: {UI_INK};
-            --ags-red: {UI_RED};
+            --ags-panel: #f4f4f3;
+            --ags-soft: #f8f8f7;
+            --ags-line: #dedede;
+            --ags-ink: #222222;
+            --ags-muted: #6f6f6f;
+            --ags-active: #3a3a3a;
         }}
         .stApp {{
-            background:
-                linear-gradient(135deg, rgba(0, 43, 91, 0.045), rgba(255, 255, 255, 0) 36%),
-                linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+            background: #f5f5f4;
             color: var(--ags-ink);
         }}
         .block-container {{
-            max-width: 1180px;
-            padding-top: 2.2rem;
+            max-width: 1220px;
+            padding-top: 1.1rem;
             padding-bottom: 3rem;
         }}
         h1, h2, h3 {{
             color: var(--ags-ink);
             letter-spacing: 0;
         }}
-        .ags-hero {{
-            border: 1px solid var(--ags-line);
-            border-left: 7px solid var(--ags-navy);
-            border-radius: 8px;
-            padding: 1.35rem 1.45rem;
+        .ags-top-nav {{
+            max-width: 1040px;
+            margin: 0 auto 4.2rem auto;
+            padding: 0.38rem;
+            border-radius: 999px;
             background: rgba(255, 255, 255, 0.92);
-            box-shadow: 0 10px 28px rgba(43, 45, 66, 0.08);
-            margin-bottom: 1.25rem;
+            border: 1px solid #eeeeee;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.035);
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.25rem;
+            color: #777777;
+            font-size: 0.95rem;
+        }}
+        .ags-top-nav span {{
+            display: block;
+            text-align: center;
+            padding: 0.62rem 1rem;
+            border-radius: 999px;
+            white-space: nowrap;
+        }}
+        .ags-top-nav .active {{
+            background: var(--ags-active);
+            color: #ffffff;
+            font-weight: 700;
+        }}
+        .ags-hero {{
+            margin: 0 0 2rem 0;
         }}
         .ags-kicker {{
             margin: 0 0 0.4rem 0;
-            color: var(--ags-red);
+            color: var(--ags-muted);
             font-size: 0.78rem;
-            font-weight: 800;
+            font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.08em;
         }}
         .ags-title {{
             margin: 0;
-            font-size: clamp(2.1rem, 4vw, 4rem);
-            line-height: 1.02;
-            font-weight: 850;
-            color: var(--ags-navy);
+            font-size: clamp(2rem, 3.2vw, 3rem);
+            line-height: 1.08;
+            font-weight: 760;
+            color: #161616;
         }}
         .ags-subtitle {{
             margin: 0.7rem 0 0 0;
-            color: #4f5264;
-            max-width: 780px;
-            font-size: 1.02rem;
+            color: var(--ags-muted);
+            max-width: 760px;
+            font-size: 1rem;
+            line-height: 1.6;
+        }}
+        .ags-upload-shell {{
+            border: 1px solid var(--ags-line);
+            border-radius: 22px;
+            padding: 1.25rem 1.35rem 1.35rem 1.35rem;
+            background: #ffffff;
+            margin-bottom: 1.2rem;
         }}
         .ags-status {{
             border: 1px solid var(--ags-line);
-            border-radius: 8px;
+            border-radius: 16px;
             padding: 0.85rem 1rem;
-            background: var(--ags-panel);
+            background: #ffffff;
             display: flex;
             gap: 0.75rem;
             align-items: center;
-            margin: 1rem 0 1.25rem 0;
+            margin: 1rem 0 2.8rem 0;
         }}
         .ags-status-dot {{
             width: 0.75rem;
             height: 0.75rem;
             border-radius: 999px;
-            background: var(--ags-red);
-            box-shadow: 0 0 0 4px rgba(217, 4, 41, 0.12);
+            background: #3f7d5b;
+            box-shadow: 0 0 0 4px rgba(63, 125, 91, 0.12);
             flex: 0 0 auto;
         }}
         .ags-status-title {{
@@ -208,82 +236,142 @@ def inject_custom_css() -> None:
         }}
         .ags-status-path {{
             margin: 0.15rem 0 0 0;
-            color: #6d7080;
+            color: var(--ags-muted);
             font-size: 0.88rem;
             overflow-wrap: anywhere;
         }}
         .ags-section-title {{
-            color: var(--ags-navy);
-            font-weight: 850;
-            margin: 1.6rem 0 0.2rem 0;
-            font-size: 1.45rem;
+            color: #161616;
+            font-weight: 760;
+            margin: 2.5rem 0 1.6rem 0;
+            font-size: 1.7rem;
         }}
         .ags-section-copy {{
-            color: #606372;
+            color: var(--ags-muted);
             margin: 0 0 0.9rem 0;
         }}
-        .ags-card {{
+        .ags-module-panel {{
             border: 1px solid var(--ags-line);
-            border-top: 5px solid var(--ags-navy);
-            border-radius: 8px;
-            padding: 1rem 1rem 0.85rem 1rem;
+            border-radius: 26px;
+            padding: 2.15rem 2.25rem;
             background: #ffffff;
-            min-height: 142px;
-            box-shadow: 0 8px 20px rgba(43, 45, 66, 0.06);
-            margin-bottom: 0.55rem;
+            min-height: 360px;
+            display: grid;
+            grid-template-columns: 1fr 0.95fr;
+            gap: 2.2rem;
+            align-items: center;
         }}
-        .ags-card.accent {{
-            border-top-color: var(--ags-red);
+        .ags-module-panel h3 {{
+            margin: 0 0 1rem 0;
+            font-size: 1.35rem;
+            font-weight: 760;
+            color: #161616;
         }}
-        .ags-card h3 {{
-            margin: 0;
-            font-size: 1.02rem;
-            color: var(--ags-ink);
-            font-weight: 850;
+        .ags-module-panel p {{
+            color: #343434;
+            font-size: 1rem;
+            line-height: 1.55;
+            margin: 0 0 1.15rem 0;
         }}
-        .ags-card p {{
-            margin: 0.45rem 0 0 0;
-            color: #606372;
-            font-size: 0.88rem;
-            line-height: 1.35;
+        .ags-module-meta {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.55rem;
         }}
         .ags-count {{
             display: inline-block;
-            margin-top: 0.75rem;
-            padding: 0.2rem 0.5rem;
+            padding: 0.32rem 0.7rem;
             border-radius: 999px;
-            background: rgba(0, 43, 91, 0.08);
-            color: var(--ags-navy);
-            font-size: 0.78rem;
-            font-weight: 800;
+            background: #f0f0ef;
+            border: 1px solid #e2e2e0;
+            color: #4c4c4c;
+            font-size: 0.82rem;
+            font-weight: 650;
+        }}
+        .ags-software-visual {{
+            border: 1px solid #e4e4e2;
+            border-radius: 18px;
+            background: #fafafa;
+            padding: 1rem;
+        }}
+        .ags-window-bar {{
+            height: 1.15rem;
+            display: flex;
+            gap: 0.32rem;
+            margin-bottom: 0.85rem;
+        }}
+        .ags-window-dot {{
+            width: 0.45rem;
+            height: 0.45rem;
+            border-radius: 999px;
+            background: #c9c9c7;
+        }}
+        .ags-plot-preview {{
+            height: 210px;
+            border: 1px solid #dfdfdc;
+            border-radius: 12px;
+            background:
+                linear-gradient(#eeeeeb 1px, transparent 1px),
+                linear-gradient(90deg, #eeeeeb 1px, transparent 1px),
+                #ffffff;
+            background-size: 36px 36px;
+            position: relative;
+            overflow: hidden;
+        }}
+        .ags-plot-line {{
+            position: absolute;
+            left: 12%;
+            right: 10%;
+            top: 45%;
+            height: 2px;
+            background: #555555;
+            transform: rotate(-12deg);
+            transform-origin: center;
+        }}
+        .ags-plot-dot {{
+            position: absolute;
+            width: 0.55rem;
+            height: 0.55rem;
+            border-radius: 999px;
+            background: #4c4c4c;
+        }}
+        .ags-module-sidebar-note {{
+            color: var(--ags-muted);
+            font-size: 0.9rem;
+            margin-bottom: 0.9rem;
         }}
         div.stButton > button {{
-            border-radius: 8px;
-            border: 1px solid var(--ags-navy);
-            background: var(--ags-navy);
-            color: #ffffff;
-            font-weight: 800;
-            min-height: 2.55rem;
+            border-radius: 12px;
+            border: 1px solid #e4e4e2;
+            background: #ffffff;
+            color: #222222;
+            font-weight: 650;
+            min-height: 3.05rem;
             box-shadow: none;
         }}
         div.stButton > button:hover {{
-            border-color: var(--ags-red);
-            background: var(--ags-red);
+            border-color: var(--ags-active);
+            background: var(--ags-active);
+            color: #ffffff;
+        }}
+        div.stButton > button[kind="primary"] {{
+            border-color: var(--ags-active);
+            background: var(--ags-active);
             color: #ffffff;
         }}
         div.stButton > button:disabled {{
-            background: #d8d8d8;
-            border-color: #d8d8d8;
-            color: #777777;
+            background: #eeeeec;
+            border-color: #eeeeec;
+            color: #9a9a98;
         }}
         div[data-testid="stFileUploader"] section {{
-            background: var(--ags-panel);
+            background: var(--ags-soft);
             border: 1px solid var(--ags-line);
-            border-radius: 8px;
+            border-radius: 16px;
         }}
         div[data-testid="stExpander"] {{
             border-color: var(--ags-line);
-            border-radius: 8px;
+            border-radius: 16px;
             background: #ffffff;
         }}
         </style>
@@ -293,6 +381,7 @@ def inject_custom_css() -> None:
 
 
 def render_home_screen() -> None:
+    render_top_nav("Applications")
     st.markdown(
         """
         <div class="ags-hero">
@@ -304,6 +393,7 @@ def render_home_screen() -> None:
         unsafe_allow_html=True,
     )
 
+    st.markdown('<div class="ags-upload-shell">', unsafe_allow_html=True)
     uploaded = st.file_uploader(
         "Upload AGS data",
         type=["ags", "csv", "txt", "xlsx"],
@@ -311,6 +401,7 @@ def render_home_screen() -> None:
     )
 
     local_path = render_local_file_loader(uploaded is None)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if uploaded is not None:
         st.session_state["ags_source_name"] = uploaded.name
@@ -500,32 +591,76 @@ def render_home_screen() -> None:
     render_module_grid(modules)
 
 
+def render_top_nav(active: str) -> None:
+    items = ["Overview", "Applications", "What's New", "Resources", "Pricing"]
+    markup = "".join(
+        f'<span class="active">{html.escape(item)}</span>' if item == active else f"<span>{html.escape(item)}</span>"
+        for item in items
+    )
+    st.markdown(f'<div class="ags-top-nav">{markup}</div>', unsafe_allow_html=True)
+
+
 def render_module_grid(modules: list[dict[str, object]]) -> None:
-    for row_start in range(0, len(modules), 3):
-        columns = st.columns(3)
-        for column, module in zip(columns, modules[row_start : row_start + 3]):
-            with column:
-                render_module_card(module)
+    available_modules = [module for module in modules if not bool(module["disabled"])]
+    featured = available_modules[0] if available_modules else modules[0]
+    sidebar_col, panel_col = st.columns([0.31, 0.69], gap="medium")
+    with sidebar_col:
+        st.markdown('<p class="ags-module-sidebar-note">Open an analysis workspace</p>', unsafe_allow_html=True)
+        for index, module in enumerate(modules):
+            label = str(module["title"])
+            button_type = "primary" if module is featured else "secondary"
+            if st.button(
+                label,
+                key=f"open_{module['screen']}",
+                disabled=bool(module["disabled"]),
+                use_container_width=True,
+                type=button_type,
+            ):
+                st.session_state["screen"] = str(module["screen"])
+                st.rerun()
+
+    with panel_col:
+        render_module_overview_panel(featured, modules)
 
 
-def render_module_card(module: dict[str, object]) -> None:
-    card_class = "ags-card accent" if module["accent"] else "ags-card"
+def render_module_overview_panel(module: dict[str, object], modules: list[dict[str, object]]) -> None:
     title = html.escape(str(module["title"]))
     description = html.escape(str(module["description"]))
     count = html.escape(str(module["count"]))
+    available_count = sum(1 for candidate in modules if not bool(candidate["disabled"]))
     st.markdown(
         f"""
-        <div class="{card_class}">
-            <h3>{title}</h3>
-            <p>{description}</p>
-            <span class="ags-count">{count}</span>
+        <div class="ags-module-panel">
+            <div>
+                <h3>{title}</h3>
+                <p>{description}</p>
+                <p>Use the module list to open filtered charts, matched source data, design-line summaries, and exportable engineering figures from the loaded AGS dataset.</p>
+                <div class="ags-module-meta">
+                    <span class="ags-count">{count}</span>
+                    <span class="ags-count">{available_count} modules available</span>
+                    <span class="ags-count">AGS linked analysis</span>
+                </div>
+            </div>
+            <div class="ags-software-visual">
+                <div class="ags-window-bar">
+                    <span class="ags-window-dot"></span>
+                    <span class="ags-window-dot"></span>
+                    <span class="ags-window-dot"></span>
+                </div>
+                <div class="ags-plot-preview">
+                    <span class="ags-plot-line"></span>
+                    <span class="ags-plot-dot" style="left: 18%; top: 64%;"></span>
+                    <span class="ags-plot-dot" style="left: 30%; top: 52%;"></span>
+                    <span class="ags-plot-dot" style="left: 43%; top: 46%;"></span>
+                    <span class="ags-plot-dot" style="left: 56%; top: 39%;"></span>
+                    <span class="ags-plot-dot" style="left: 70%; top: 31%;"></span>
+                    <span class="ags-plot-dot" style="left: 82%; top: 24%;"></span>
+                </div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    if st.button("Open", key=f"open_{module['screen']}", disabled=bool(module["disabled"]), use_container_width=True):
-        st.session_state["screen"] = str(module["screen"])
-        st.rerun()
 
 
 def render_spt_screen() -> None:
