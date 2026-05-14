@@ -550,8 +550,6 @@ def render_spt_screen() -> None:
         st.warning(spt_error or "No valid SPT rows found after reading LOCA_ID, ISPT_TOP, and ISPT_MAIN.")
         return
 
-    st.caption(f"Loaded {parsed.source_name}")
-
     render_spt_module(parsed, spt)
 
 
@@ -578,8 +576,6 @@ def render_ivan_screen() -> None:
     if ivan_error or ivan.empty:
         st.warning(ivan_error or "No valid hand shear vane rows found after reading LOCA_ID, IVAN_DPTH, and IVAN_IVAN.")
         return
-
-    st.caption(f"Loaded {parsed.source_name}")
 
     render_ivan_module(parsed, ivan)
 
@@ -608,8 +604,6 @@ def render_ucs_screen() -> None:
         st.warning(ucs_error or "No valid UCS rows found after reading LOCA_ID, SAMP_TOP, and RUCS_UCS.")
         return
 
-    st.caption(f"Loaded {parsed.source_name}")
-
     render_ucs_module(parsed, ucs)
 
 
@@ -636,8 +630,6 @@ def render_rqd_screen() -> None:
     if rqd_error or rqd.empty:
         st.warning(rqd_error or "No valid RQD rows found after reading LOCA_ID, CORE_TOP, and CORE_RQD.")
         return
-
-    st.caption(f"Loaded {parsed.source_name}")
 
     render_rqd_module(parsed, rqd)
 
@@ -666,8 +658,6 @@ def render_atterberg_screen() -> None:
         st.warning(atterberg_error or "No valid Atterberg rows found after reading LOCA_ID, SAMP_TOP, LLPL_LL, and LLPL_PL.")
         return
 
-    st.caption(f"Loaded {parsed.source_name}")
-
     render_atterberg_module(parsed, atterberg)
 
 
@@ -694,8 +684,6 @@ def render_pointload_screen() -> None:
     if pointload_error or pointload.empty:
         st.warning(pointload_error or "No valid point load rows found after reading LOCA_ID, depth, and RPLT_PLSI.")
         return
-
-    st.caption(f"Loaded {parsed.source_name}")
 
     render_pointload_module(parsed, pointload)
 
@@ -724,8 +712,6 @@ def render_psd_screen() -> None:
         st.warning(psd_error or "No valid PSD rows found after reading LOCA_ID, SAMP_TOP, GRAT_SIZE, and GRAT_PERP.")
         return
 
-    st.caption(f"Loaded {parsed.source_name}")
-
     render_psd_module(parsed, psd)
 
 
@@ -752,8 +738,6 @@ def render_groundwater_screen() -> None:
     if groundwater_error or groundwater.empty:
         st.warning(groundwater_error or "No valid groundwater strike rows found after reading LOCA_ID and WSTG_DPTH.")
         return
-
-    st.caption(f"Loaded {parsed.source_name}")
 
     render_groundwater_module(parsed, groundwater)
 
@@ -786,7 +770,6 @@ def render_map_screen() -> None:
         st.warning(str(exc))
         return
 
-    st.caption(f"Loaded {parsed.source_name}")
     render_map_module(locations, geology, x_column, y_column, x_label, y_label)
 
 
@@ -817,7 +800,6 @@ def render_geological_model_screen() -> None:
         st.warning(str(exc))
         return
 
-    st.caption(f"Loaded {parsed.source_name}")
     render_geological_model_module(model)
 
 
@@ -842,7 +824,6 @@ def render_summary_stats_screen() -> None:
     if parsed is None:
         return
 
-    st.caption(f"Loaded {parsed.source_name}")
     render_summary_stats_module(
         {
             "SPT": analysis[1],
@@ -884,7 +865,6 @@ def render_bre_sulphate_screen() -> None:
         st.warning(str(exc))
         return
 
-    st.caption(f"Loaded {parsed.source_name}")
     render_bre_sulphate_module(bre_sulphate)
 
 
@@ -963,18 +943,6 @@ def build_optional_table(tables: dict[str, pd.DataFrame], builder) -> tuple[pd.D
 
 
 def render_bre_sulphate_module(bre_sulphate: pd.DataFrame) -> None:
-    sample_count, investigation_count, sulphate_count, ph_count, matched_count = st.columns(5)
-    sample_count.metric("Chemistry samples", len(bre_sulphate))
-    investigation_count.metric("Investigations", bre_sulphate["LOCA_ID"].nunique())
-    sulphate_count.metric("Sulphate results", int(bre_sulphate["WS_MG_L"].notna().sum()))
-    ph_count.metric("pH results", int(bre_sulphate["PH_VALUE"].notna().sum()))
-    matched_count.metric("Matched to GEOL", int(bre_sulphate["GEOLOGY_MATCHED"].sum()))
-
-    st.caption(
-        "This module implements the BRE SD1 Table C1/C2 non-pyrite route using GCHM water soluble sulphate "
-        "and pH results. Brownfield magnesium, chloride, and nitrate indicators are shown where present."
-    )
-
     option_col_1, option_col_2 = st.columns(2)
     with option_col_1:
         site_type = st.radio("Location type", ["Natural", "Brownfield"], horizontal=True)
@@ -1502,30 +1470,6 @@ def summary_source_columns(module_name: str, data: pd.DataFrame) -> list[str]:
 
 
 def render_spt_module(parsed, spt: pd.DataFrame) -> None:
-    loca_ids_all = table_ids(parsed.get("LOCA"), "LOCA_ID")
-    spt_loca_ids = table_ids(spt, "LOCA_ID")
-    loca_without_spt = [loca_id for loca_id in loca_ids_all if loca_id not in set(spt_loca_ids)]
-
-    group_count, loca_count, spt_loca_count, spt_count, matched_count = st.columns(5)
-    group_count.metric("AGS groups", len(parsed.tables))
-    loca_count.metric("LOCA investigations", len(loca_ids_all) or "n/a")
-    spt_loca_count.metric("SPT investigations", len(spt_loca_ids))
-    spt_count.metric("SPT records", len(spt))
-    matched_count.metric("Matched to GEOL", int(spt["GEOLOGY_MATCHED"].sum()))
-
-    st.caption(
-        "Graphs use investigations with valid `ISPT_TOP` and `ISPT_MAIN` records. "
-        "`LOCA` can include trial pits or locations with no SPT data, so the plotted investigation count may be lower."
-    )
-
-    if loca_without_spt:
-        with st.expander(f"{len(loca_without_spt)} LOCA investigations have no plottable SPT records"):
-            st.dataframe(
-                pd.DataFrame({"LOCA_ID": loca_without_spt}),
-                use_container_width=True,
-                hide_index=True,
-            )
-
     if spt.empty:
         st.warning("No valid SPT rows found after reading LOCA_ID, ISPT_TOP, and ISPT_MAIN.")
         return
@@ -1599,30 +1543,6 @@ def render_spt_module(parsed, spt: pd.DataFrame) -> None:
 
 
 def render_ivan_module(parsed, ivan: pd.DataFrame) -> None:
-    loca_ids_all = table_ids(parsed.get("LOCA"), "LOCA_ID")
-    ivan_loca_ids = table_ids(ivan, "LOCA_ID")
-    loca_without_ivan = [loca_id for loca_id in loca_ids_all if loca_id not in set(ivan_loca_ids)]
-
-    group_count, loca_count, ivan_loca_count, ivan_count, matched_count = st.columns(5)
-    group_count.metric("AGS groups", len(parsed.tables))
-    loca_count.metric("LOCA investigations", len(loca_ids_all) or "n/a")
-    ivan_loca_count.metric("Hand vane investigations", len(ivan_loca_ids))
-    ivan_count.metric("Hand vane records", len(ivan))
-    matched_count.metric("Matched to GEOL", int(ivan["GEOLOGY_MATCHED"].sum()))
-
-    st.caption(
-        "Graphs use investigations with valid `IVAN_DPTH` and `IVAN_IVAN` records. "
-        "`LOCA` can include locations with no hand shear vane data, so the plotted investigation count may be lower."
-    )
-
-    if loca_without_ivan:
-        with st.expander(f"{len(loca_without_ivan)} LOCA investigations have no plottable hand shear vane records"):
-            st.dataframe(
-                pd.DataFrame({"LOCA_ID": loca_without_ivan}),
-                use_container_width=True,
-                hide_index=True,
-            )
-
     selected_loca, geology_mode, selected_units, selected_materials, selected_model_units, selected_bedrock = render_filters(ivan, "hand shear vane records")
 
     filtered = ivan[ivan["LOCA_ID"].isin(selected_loca)].copy()
@@ -1667,30 +1587,6 @@ def render_ivan_module(parsed, ivan: pd.DataFrame) -> None:
 
 
 def render_ucs_module(parsed, ucs: pd.DataFrame) -> None:
-    loca_ids_all = table_ids(parsed.get("LOCA"), "LOCA_ID")
-    ucs_loca_ids = table_ids(ucs, "LOCA_ID")
-    loca_without_ucs = [loca_id for loca_id in loca_ids_all if loca_id not in set(ucs_loca_ids)]
-
-    group_count, loca_count, ucs_loca_count, ucs_count, matched_count = st.columns(5)
-    group_count.metric("AGS groups", len(parsed.tables))
-    loca_count.metric("LOCA investigations", len(loca_ids_all) or "n/a")
-    ucs_loca_count.metric("UCS investigations", len(ucs_loca_ids))
-    ucs_count.metric("UCS records", len(ucs))
-    matched_count.metric("Matched to GEOL", int(ucs["GEOLOGY_MATCHED"].sum()))
-
-    st.caption(
-        "Graphs use investigations with valid `SAMP_TOP` and `RUCS_UCS` records from the `RUCS` group. "
-        "`LOCA` can include locations with no UCS data, so the plotted investigation count may be lower."
-    )
-
-    if loca_without_ucs:
-        with st.expander(f"{len(loca_without_ucs)} LOCA investigations have no plottable UCS records"):
-            st.dataframe(
-                pd.DataFrame({"LOCA_ID": loca_without_ucs}),
-                use_container_width=True,
-                hide_index=True,
-            )
-
     selected_loca, geology_mode, selected_units, selected_materials, selected_model_units, selected_bedrock = render_filters(ucs, "UCS records")
 
     filtered = ucs[ucs["LOCA_ID"].isin(selected_loca)].copy()
@@ -1735,30 +1631,6 @@ def render_ucs_module(parsed, ucs: pd.DataFrame) -> None:
 
 
 def render_rqd_module(parsed, rqd: pd.DataFrame) -> None:
-    loca_ids_all = table_ids(parsed.get("LOCA"), "LOCA_ID")
-    rqd_loca_ids = table_ids(rqd, "LOCA_ID")
-    loca_without_rqd = [loca_id for loca_id in loca_ids_all if loca_id not in set(rqd_loca_ids)]
-
-    group_count, loca_count, rqd_loca_count, rqd_count, matched_count = st.columns(5)
-    group_count.metric("AGS groups", len(parsed.tables))
-    loca_count.metric("LOCA investigations", len(loca_ids_all) or "n/a")
-    rqd_loca_count.metric("RQD investigations", len(rqd_loca_ids))
-    rqd_count.metric("RQD records", len(rqd))
-    matched_count.metric("Matched to GEOL", int(rqd["GEOLOGY_MATCHED"].sum()))
-
-    st.caption(
-        "Graphs use investigations with valid `CORE_TOP` and `CORE_RQD` records from the `CORE` group. "
-        "`LOCA` can include locations with no core RQD data, so the plotted investigation count may be lower."
-    )
-
-    if loca_without_rqd:
-        with st.expander(f"{len(loca_without_rqd)} LOCA investigations have no plottable RQD records"):
-            st.dataframe(
-                pd.DataFrame({"LOCA_ID": loca_without_rqd}),
-                use_container_width=True,
-                hide_index=True,
-            )
-
     selected_loca, geology_mode, selected_units, selected_materials, selected_model_units, selected_bedrock = render_filters(rqd, "RQD records")
 
     filtered = rqd[rqd["LOCA_ID"].isin(selected_loca)].copy()
@@ -1804,40 +1676,6 @@ def render_rqd_module(parsed, rqd: pd.DataFrame) -> None:
 
 
 def render_atterberg_module(parsed, atterberg: pd.DataFrame) -> None:
-    loca_ids_all = table_ids(parsed.get("LOCA"), "LOCA_ID")
-    atterberg_loca_ids = table_ids(atterberg, "LOCA_ID")
-    loca_without_atterberg = [loca_id for loca_id in loca_ids_all if loca_id not in set(atterberg_loca_ids)]
-
-    (
-        loca_count,
-        atterberg_loca_count,
-        atterberg_count,
-        ll_count,
-        pl_count,
-        pi_count,
-        matched_count,
-    ) = st.columns(7)
-    loca_count.metric("LOCA investigations", len(loca_ids_all) or "n/a")
-    atterberg_loca_count.metric("Atterberg investigations", len(atterberg_loca_ids))
-    atterberg_count.metric("Atterberg records", len(atterberg))
-    ll_count.metric("LL values", int(atterberg["LLPL_LL_NUM"].notna().sum()))
-    pl_count.metric("PL values", int(atterberg["LLPL_PL_NUM"].notna().sum()))
-    pi_count.metric("PI values", int(atterberg["LLPL_PI_NUM"].notna().sum()))
-    matched_count.metric("Matched to GEOL", int(atterberg["GEOLOGY_MATCHED"].sum()))
-
-    st.caption(
-        "Graphs use investigations with valid `SAMP_TOP` and Atterberg results from the `LLPL` group. "
-        "Plasticity Index is taken from `LLPL_PI` where present and otherwise calculated as `LLPL_LL - LLPL_PL`."
-    )
-
-    if loca_without_atterberg:
-        with st.expander(f"{len(loca_without_atterberg)} LOCA investigations have no plottable Atterberg records"):
-            st.dataframe(
-                pd.DataFrame({"LOCA_ID": loca_without_atterberg}),
-                use_container_width=True,
-                hide_index=True,
-            )
-
     selected_loca, geology_mode, selected_units, selected_materials, selected_model_units, selected_bedrock = render_filters(atterberg, "Atterberg records")
 
     filtered = atterberg[atterberg["LOCA_ID"].isin(selected_loca)].copy()
@@ -1895,29 +1733,6 @@ def render_atterberg_module(parsed, atterberg: pd.DataFrame) -> None:
 
 
 def render_pointload_module(parsed, pointload: pd.DataFrame) -> None:
-    loca_ids_all = table_ids(parsed.get("LOCA"), "LOCA_ID")
-    pointload_loca_ids = table_ids(pointload, "LOCA_ID")
-    loca_without_pointload = [loca_id for loca_id in loca_ids_all if loca_id not in set(pointload_loca_ids)]
-
-    loca_count, pointload_loca_count, pointload_count, matched_count = st.columns(4)
-    loca_count.metric("LOCA investigations", len(loca_ids_all) or "n/a")
-    pointload_loca_count.metric("Point load investigations", len(pointload_loca_ids))
-    pointload_count.metric("Point load records", len(pointload))
-    matched_count.metric("Matched to GEOL", int(pointload["GEOLOGY_MATCHED"].sum()))
-
-    st.caption(
-        "Graphs use `RPLT_PLSI` from the `RPLT` group. Depth is taken from `SPEC_DPTH` where present, "
-        "otherwise `SAMP_TOP` is used."
-    )
-
-    if loca_without_pointload:
-        with st.expander(f"{len(loca_without_pointload)} LOCA investigations have no plottable point load records"):
-            st.dataframe(
-                pd.DataFrame({"LOCA_ID": loca_without_pointload}),
-                use_container_width=True,
-                hide_index=True,
-            )
-
     selected_loca, geology_mode, selected_units, selected_materials, selected_model_units, selected_bedrock = render_filters(pointload, "point load records")
 
     filtered = pointload[pointload["LOCA_ID"].isin(selected_loca)].copy()
@@ -1964,51 +1779,16 @@ def render_pointload_module(parsed, pointload: pd.DataFrame) -> None:
 
 
 def render_groundwater_module(parsed, groundwater: pd.DataFrame) -> None:
-    loca_ids_all = table_ids(parsed.get("LOCA"), "LOCA_ID")
-    groundwater_loca_ids = table_ids(groundwater, "LOCA_ID")
-    loca_without_groundwater = [loca_id for loca_id in loca_ids_all if loca_id not in set(groundwater_loca_ids)]
-
-    loca_count, groundwater_loca_count, groundwater_count, post_count, matched_count = st.columns(5)
-    loca_count.metric("LOCA investigations", len(loca_ids_all) or "n/a")
-    groundwater_loca_count.metric("Strike investigations", len(groundwater_loca_ids))
-    groundwater_count.metric("Groundwater strikes", len(groundwater))
-    post_count.metric("Post-strike readings", int(groundwater["WSTD_POST_NUM"].notna().sum()))
-    matched_count.metric("Matched to GEOL", int(groundwater["GEOLOGY_MATCHED"].sum()))
-
-    st.caption(
-        "Graphs use groundwater strike depth from `WSTG_DPTH` in the `WSTG` group. "
-        "`WSTD_POST` readings from `WSTD` are included in the data table where available."
-    )
-
-    if loca_without_groundwater:
-        with st.expander(f"{len(loca_without_groundwater)} LOCA investigations have no plottable groundwater strike records"):
-            st.dataframe(
-                pd.DataFrame({"LOCA_ID": loca_without_groundwater}),
-                use_container_width=True,
-                hide_index=True,
-            )
-
-    selected_loca, geology_mode, selected_units, selected_materials, selected_model_units, selected_bedrock = render_filters(groundwater, "groundwater strike records")
-
+    selected_loca = render_investigation_filter(groundwater, "groundwater strike records")
     filtered = groundwater[groundwater["LOCA_ID"].isin(selected_loca)].copy()
-    filtered_by_unit = apply_geology_filter(filtered, selected_units, geology_mode, selected_materials, selected_model_units, selected_bedrock)
 
-    tab_all, tab_units, tab_data = st.tabs(
-        ["All Investigations", "Geological Units", "Matched Data"]
-    )
+    tab_all, tab_data = st.tabs(["All Investigations", "Matched Data"])
 
     with tab_all:
         render_groundwater_plot(
-            filtered_by_unit,
+            filtered,
             title="Groundwater Strike Depth by Investigation",
             color_by="LOCA_ID",
-        )
-
-    with tab_units:
-        render_groundwater_plot(
-            filtered_by_unit,
-            title="Groundwater Strike Depth by Geological Unit",
-            color_by="GEOL_GEOL",
         )
 
     with tab_data:
@@ -2029,7 +1809,7 @@ def render_groundwater_module(parsed, groundwater: pd.DataFrame) -> None:
             "GEOLOGY_MATCHED",
         ]
         st.dataframe(
-            filtered_by_unit[matched_data_columns(filtered_by_unit, columns)],
+            filtered[matched_data_columns(filtered, columns)],
             use_container_width=True,
             hide_index=True,
         )
@@ -2043,16 +1823,6 @@ def render_map_module(
     x_label: str,
     y_label: str,
 ) -> None:
-    location_count, geology_count, unit_count = st.columns(3)
-    location_count.metric("Mapped investigations", len(locations))
-    geology_count.metric("Geology intervals", len(geology))
-    unit_count.metric("Geological units", geology["GEOL_GEOL"].nunique())
-
-    st.caption(
-        "Map positions use the populated `LOCA` coordinate pair. The geology filter reports matching `GEOL` depth "
-        "intervals for the investigations selected on the map."
-    )
-
     filter_col_1, filter_col_2 = st.columns([1.4, 1])
     location_ids = sorted(locations["LOCA_ID"].dropna().unique())
     geology_units = sorted(geology["GEOL_GEOL"].dropna().unique())
@@ -2073,8 +1843,6 @@ def render_map_module(
                 default=location_ids[: min(len(location_ids), 12)],
                 key="map_selected_loca",
             )
-        st.caption(f"Showing {len(selected_loca)} investigations on the map.")
-
     with filter_col_2:
         selected_units = st.multiselect(
             "Geology to report",
@@ -2149,17 +1917,6 @@ def render_map_module(
 
 
 def render_geological_model_module(model: pd.DataFrame) -> None:
-    interval_count, investigation_count, unit_count, material_count = st.columns(4)
-    interval_count.metric("Strata intervals", len(model))
-    investigation_count.metric("Investigations", model["LOCA_ID"].nunique())
-    unit_count.metric("Geological units", model["GEOL_GEOL"].nunique())
-    material_count.metric("Material classes", model["MATERIAL_CLASS"].nunique())
-
-    st.caption(
-        "Material classes are derived from `GEOL_DESC` and `GEOL_GEOL`. Bedrock type is extracted from capitalised "
-        "rock names in the description, such as `PSAMMITE`, `GRANITE`, or `GNEISS`."
-    )
-
     filter_col_1, filter_col_2, filter_col_3 = st.columns(3)
     with filter_col_1:
         selected_loca = st.multiselect(
@@ -2257,30 +2014,7 @@ def render_geological_model_module(model: pd.DataFrame) -> None:
 
 
 def render_psd_module(parsed, psd: pd.DataFrame) -> None:
-    loca_ids_all = table_ids(parsed.get("LOCA"), "LOCA_ID")
-    psd_loca_ids = table_ids(psd, "LOCA_ID")
     sample_count = psd["PSD_SAMPLE_ID"].nunique()
-    loca_without_psd = [loca_id for loca_id in loca_ids_all if loca_id not in set(psd_loca_ids)]
-
-    loca_count, psd_loca_count, psd_sample_count, point_count, matched_count = st.columns(5)
-    loca_count.metric("LOCA investigations", len(loca_ids_all) or "n/a")
-    psd_loca_count.metric("PSD investigations", len(psd_loca_ids))
-    psd_sample_count.metric("PSD curves", sample_count)
-    point_count.metric("Curve points", len(psd))
-    matched_count.metric("Matched to GEOL", int(psd["GEOLOGY_MATCHED"].sum()))
-
-    st.caption(
-        "Curves use `GRAT_SIZE` and `GRAT_PERP` from the `GRAT` group. Each curve is grouped by investigation, "
-        "sample depth, sample reference, sample type, sample ID, and specimen reference where present."
-    )
-
-    if loca_without_psd:
-        with st.expander(f"{len(loca_without_psd)} LOCA investigations have no plottable PSD records"):
-            st.dataframe(
-                pd.DataFrame({"LOCA_ID": loca_without_psd}),
-                use_container_width=True,
-                hide_index=True,
-            )
 
     selected_loca, geology_mode, selected_units, selected_materials, selected_model_units, selected_bedrock = render_filters(psd, "PSD curve points")
 
@@ -2294,7 +2028,6 @@ def render_psd_module(parsed, psd: pd.DataFrame) -> None:
         default=curve_ids[: min(len(curve_ids), 12)],
     )
     plot_data = filtered_by_unit[filtered_by_unit["PSD_SAMPLE_ID"].isin(selected_curves)].copy()
-    st.caption(f"Plotting {plot_data['PSD_SAMPLE_ID'].nunique()} curves. Select fewer curves for clearer comparison.")
 
     tab_curve, tab_data = st.tabs(["PSD Curves", "Matched Data"])
 
@@ -2334,7 +2067,6 @@ def render_filters(data: pd.DataFrame, record_label: str) -> tuple[list[str], st
     material_classes = sorted(data["MATERIAL_CLASS"].dropna().unique()) if "MATERIAL_CLASS" in data.columns else []
     model_units = sorted(data["MODEL_UNIT"].dropna().unique()) if "MODEL_UNIT" in data.columns else []
     bedrock_types = sorted(data["BEDROCK_TYPE"].dropna().unique()) if "BEDROCK_TYPE" in data.columns else []
-    st.caption(f"Investigation filters operate on {len(loca_ids)} locations with valid {record_label}.")
 
     filter_col_1, filter_col_2 = st.columns([1.4, 1])
     with filter_col_1:
@@ -2345,10 +2077,8 @@ def render_filters(data: pd.DataFrame, record_label: str) -> tuple[list[str], st
         )
         if investigation_mode == "All investigations":
             selected_loca = loca_ids
-            st.caption(f"Plotting all {len(selected_loca)} investigations with valid {record_label}.")
         else:
             selected_loca = st.multiselect(f"Investigations with valid {record_label}", loca_ids, default=[])
-            st.caption(f"Plotting {len(selected_loca)} selected investigations.")
 
     with filter_col_2:
         geology_mode = st.radio(
@@ -2364,7 +2094,6 @@ def render_filters(data: pd.DataFrame, record_label: str) -> tuple[list[str], st
                 default=default_geology_selection(units, geology_mode),
             )
 
-    st.caption("Material filters are derived from the matched GEOL description. Leave blank to include all.")
     material_col_1, material_col_2, material_col_3 = st.columns(3)
     with material_col_1:
         selected_materials = st.multiselect(
@@ -2389,6 +2118,25 @@ def render_filters(data: pd.DataFrame, record_label: str) -> tuple[list[str], st
         )
 
     return selected_loca, geology_mode, selected_units, selected_materials, selected_model_units, selected_bedrock
+
+
+def render_investigation_filter(data: pd.DataFrame, record_label: str) -> list[str]:
+    st.subheader("Filters")
+    loca_ids = sorted(data["LOCA_ID"].dropna().unique())
+    investigation_mode = st.radio(
+        "Investigation filter",
+        ["All investigations", "Choose investigations"],
+        horizontal=True,
+        key=f"{slugify(record_label)}_investigation_filter",
+    )
+    if investigation_mode == "All investigations":
+        return loca_ids
+    return st.multiselect(
+        f"Investigations with valid {record_label}",
+        loca_ids,
+        default=[],
+        key=f"{slugify(record_label)}_selected_loca",
+    )
 
 
 def table_ids(table: pd.DataFrame, column: str) -> list[str]:
