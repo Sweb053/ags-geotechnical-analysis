@@ -11,6 +11,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib import transforms
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
@@ -3246,13 +3247,20 @@ def build_psd_png(data: pd.DataFrame, title: str, design_line: str = "Off") -> b
         show_legend = True
 
     ax.set_xscale("log")
-    ax.set_xlim(left=max(data["GRAT_SIZE_NUM"].min() * 0.75, 0.0005), right=data["GRAT_SIZE_NUM"].max() * 1.25)
+    ax.set_xlim(
+        left=min(max(data["GRAT_SIZE_NUM"].min() * 0.75, 0.0005), 0.001),
+        right=max(data["GRAT_SIZE_NUM"].max() * 1.25, 100),
+    )
     ax.set_ylim(0, 100)
     ax.set_title(title, fontsize=11, weight="semibold", color="#222222", pad=10)
     ax.set_xlabel("Particle size (mm)", fontsize=10, color="#333333")
     ax.set_ylabel("Percentage passing (%)", fontsize=10, color="#333333")
-    ax.tick_params(axis="both", colors="#444444", labelsize=9)
+    ax.xaxis.set_label_position("top")
+    ax.xaxis.tick_top()
+    ax.tick_params(axis="x", which="both", colors="#444444", labelsize=9, top=True, labeltop=True, bottom=False, labelbottom=False)
+    ax.tick_params(axis="y", colors="#444444", labelsize=9)
     ax.set_axisbelow(True)
+    add_soil_fraction_axis(ax)
 
     for spine in ax.spines.values():
         spine.set_color("#555555")
@@ -3269,11 +3277,79 @@ def build_psd_png(data: pd.DataFrame, title: str, design_line: str = "Off") -> b
             loc="best",
         )
 
-    fig.tight_layout()
+    fig.subplots_adjust(left=0.11, right=0.98, top=0.86, bottom=0.23)
     buffer = BytesIO()
     fig.savefig(buffer, format="png", bbox_inches="tight", facecolor="white")
     plt.close(fig)
     return buffer.getvalue()
+
+
+def add_soil_fraction_axis(ax: plt.Axes) -> None:
+    x_min, x_max = ax.get_xlim()
+    major_bounds = [0.063, 2.0, 63.0]
+    subdivision_bounds = [0.002, 0.2, 0.63, 6.3, 20.0]
+
+    for boundary in major_bounds + subdivision_bounds:
+        if x_min < boundary < x_max:
+            line_width = 0.9 if boundary in major_bounds else 0.55
+            ax.axvline(boundary, color="#5f5f5f", linewidth=line_width, alpha=0.75, zorder=0)
+
+    transform = transforms.blended_transform_factory(ax.transData, ax.transAxes)
+    major_bands = [
+        ("Clay and silt", 0.0005, 0.063),
+        ("Sand", 0.063, 2.0),
+        ("Gravel", 2.0, 63.0),
+        ("Cobbles", 63.0, 200.0),
+    ]
+    sub_bands = [
+        ("Fine", 0.063, 0.2),
+        ("Medium", 0.2, 0.63),
+        ("Coarse", 0.63, 2.0),
+        ("Fine", 2.0, 6.3),
+        ("Medium", 6.3, 20.0),
+        ("Coarse", 20.0, 63.0),
+    ]
+    draw_fraction_bands(ax, major_bands, transform, y_bottom=-0.145, height=0.055, fontsize=7.0)
+    draw_fraction_bands(ax, sub_bands, transform, y_bottom=-0.205, height=0.055, fontsize=6.5)
+
+
+def draw_fraction_bands(
+    ax: plt.Axes,
+    bands: list[tuple[str, float, float]],
+    transform,
+    y_bottom: float,
+    height: float,
+    fontsize: float,
+) -> None:
+    x_min, x_max = ax.get_xlim()
+    for label, start, end in bands:
+        left = max(start, x_min)
+        right = min(end, x_max)
+        if left >= right:
+            continue
+        rect = plt.Rectangle(
+            (left, y_bottom),
+            right - left,
+            height,
+            transform=transform,
+            facecolor="white",
+            edgecolor="#5f5f5f",
+            linewidth=0.65,
+            clip_on=False,
+        )
+        ax.add_patch(rect)
+        midpoint = math.sqrt(left * right)
+        ax.text(
+            midpoint,
+            y_bottom + height / 2,
+            label,
+            transform=transform,
+            ha="center",
+            va="center",
+            fontsize=fontsize,
+            color="#222222",
+            clip_on=False,
+        )
 
 
 def calculate_psd_design_line(
