@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import html
 from io import BytesIO
 import json
@@ -57,6 +58,7 @@ UI_LINE = "#e0e0e0"
 UI_INK = "#2b2d42"
 UI_RED = "#d90429"
 RUNTIME_DATA_DIR = Path(".ags_runtime")
+LOGO_PATH = Path("assets/ags-logo.png")
 
 
 @st.cache_data(show_spinner=False)
@@ -183,6 +185,15 @@ def restore_cached_ags_from_query() -> None:
     st.session_state["ags_content"] = data_path.read_bytes()
 
 
+@st.cache_data(show_spinner=False)
+def load_logo_data_url(path: str) -> str:
+    logo_path = Path(path)
+    if not logo_path.exists():
+        return ""
+    encoded = base64.b64encode(logo_path.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
 def inject_custom_css() -> None:
     st.markdown(
         f"""
@@ -212,6 +223,23 @@ def inject_custom_css() -> None:
         }}
         .ags-hero {{
             margin: 3rem 0 2rem 0;
+            display: flex;
+            align-items: center;
+            gap: 1.35rem;
+        }}
+        .ags-logo {{
+            width: clamp(82px, 9vw, 116px);
+            height: clamp(82px, 9vw, 116px);
+            border-radius: 999px;
+            border: 1px solid #dedede;
+            background: #ffffff;
+            object-fit: cover;
+            padding: 0.35rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.035);
+            flex: 0 0 auto;
+        }}
+        .ags-hero-copy {{
+            min-width: 0;
         }}
         .ags-kicker {{
             margin: 0 0 0.4rem 0;
@@ -431,6 +459,10 @@ def inject_custom_css() -> None:
             display: grid;
         }}
         @media (max-width: 820px) {{
+            .ags-hero {{
+                align-items: flex-start;
+                gap: 1rem;
+            }}
             .ags-workspace,
             .ags-module-panel {{
                 grid-template-columns: 1fr;
@@ -477,12 +509,17 @@ def inject_custom_css() -> None:
 
 
 def render_home_screen() -> None:
+    logo_data_url = load_logo_data_url(str(LOGO_PATH))
+    logo_markup = f'<img class="ags-logo" src="{logo_data_url}" alt="AGS Geotechnical Analysis logo" />' if logo_data_url else ""
     st.markdown(
-        """
+        f"""
         <div class="ags-hero">
-            <p class="ags-kicker">AGS data toolkit</p>
-            <h1 class="ags-title">AGS Geotechnical Analysis</h1>
-            <p class="ags-subtitle">Upload AGS data, inspect geotechnical tests, filter by geology, export scientific plots, and review mapped ground conditions.</p>
+            {logo_markup}
+            <div class="ags-hero-copy">
+                <p class="ags-kicker">AGS data toolkit</p>
+                <h1 class="ags-title">AGS Geotechnical Analysis</h1>
+                <p class="ags-subtitle">Upload AGS data, inspect geotechnical tests, filter by geology, export scientific plots, and review mapped ground conditions.</p>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
