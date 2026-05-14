@@ -96,25 +96,6 @@ def load_analysis_data(file_name: str, content: bytes):
 def main() -> None:
     inject_custom_css()
     st.session_state.setdefault("screen", "home")
-    requested_screen = st.query_params.get("screen")
-    valid_screens = {
-        "home",
-        "spt",
-        "ivan",
-        "ucs",
-        "rqd",
-        "atterberg",
-        "pointload",
-        "psd",
-        "groundwater",
-        "map",
-        "geological_model",
-        "summary_stats",
-        "bre_sulphate",
-    }
-    if requested_screen in valid_screens:
-        st.session_state["screen"] = requested_screen
-        st.query_params.clear()
 
     if st.session_state["screen"] == "spt":
         render_spt_screen()
@@ -648,42 +629,30 @@ def render_home_screen() -> None:
 def render_module_grid(modules: list[dict[str, object]]) -> None:
     available_modules = [module for module in modules if not bool(module["disabled"])]
     featured = available_modules[0] if available_modules else modules[0]
-    sidebar_items = []
-    panels = []
-    for index, module in enumerate(modules):
-        item_class = f"ags-workspace-item item-{index}"
-        title = html.escape(str(module["title"]))
-        if bool(module["disabled"]):
-            sidebar_items.append(f'<span class="{item_class} disabled">{title}</span>')
-        else:
-            sidebar_items.append(f'<a class="{item_class}" href="?screen={html.escape(str(module["screen"]))}">{title}</a>')
-        panels.append(render_module_overview_panel(module, modules, index))
-
-    st.html(
-        f"""
-        <div class="ags-workspace">
-            <div>
-                <p class="ags-module-sidebar-note">Open an analysis workspace</p>
-                <div class="ags-workspace-list">
-                    {''.join(sidebar_items)}
-                </div>
-            </div>
-            <div class="ags-workspace-panels">
-                {''.join(panels)}
-            </div>
-        </div>
-        """
-    )
+    sidebar_col, panel_col = st.columns([0.31, 0.69], gap="medium")
+    with sidebar_col:
+        st.markdown('<p class="ags-module-sidebar-note">Open an analysis workspace</p>', unsafe_allow_html=True)
+        for module in modules:
+            if st.button(
+                str(module["title"]),
+                key=f"open_{module['screen']}",
+                disabled=bool(module["disabled"]),
+                use_container_width=True,
+            ):
+                st.session_state["screen"] = str(module["screen"])
+                st.rerun()
+    with panel_col:
+        st.markdown(render_module_overview_panel(featured, modules), unsafe_allow_html=True)
 
 
-def render_module_overview_panel(module: dict[str, object], modules: list[dict[str, object]], index: int) -> str:
+def render_module_overview_panel(module: dict[str, object], modules: list[dict[str, object]]) -> str:
     title = html.escape(str(module["title"]))
     description = html.escape(str(module["description"]))
     summary = html.escape(module_summary(str(module["screen"])))
     count = html.escape(str(module["count"]))
     available_count = sum(1 for candidate in modules if not bool(candidate["disabled"]))
     return f"""
-        <div class="ags-module-panel ags-hover-panel panel-{index}">
+        <div class="ags-module-panel">
             <div>
                 <h3>{title}</h3>
                 <p>{description}</p>
