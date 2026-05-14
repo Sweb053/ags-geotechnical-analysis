@@ -6,6 +6,7 @@ import json
 import math
 from pathlib import Path
 import re
+import uuid
 
 import matplotlib
 
@@ -55,6 +56,7 @@ UI_PANEL = "#f6f7f9"
 UI_LINE = "#e0e0e0"
 UI_INK = "#2b2d42"
 UI_RED = "#d90429"
+RUNTIME_DATA_DIR = Path(".ags_runtime")
 
 
 @st.cache_data(show_spinner=False)
@@ -96,6 +98,26 @@ def load_analysis_data(file_name: str, content: bytes):
 def main() -> None:
     inject_custom_css()
     st.session_state.setdefault("screen", "home")
+    restore_cached_ags_from_query()
+    requested_screen = st.query_params.get("screen")
+    valid_screens = {
+        "home",
+        "spt",
+        "ivan",
+        "ucs",
+        "rqd",
+        "atterberg",
+        "pointload",
+        "psd",
+        "groundwater",
+        "map",
+        "geological_model",
+        "summary_stats",
+        "bre_sulphate",
+    }
+    if requested_screen in valid_screens:
+        st.session_state["screen"] = requested_screen
+        st.query_params.clear()
 
     if st.session_state["screen"] == "spt":
         render_spt_screen()
@@ -123,6 +145,42 @@ def main() -> None:
         render_bre_sulphate_screen()
     else:
         render_home_screen()
+
+
+def persist_ags_session(source_name: str, content: bytes) -> None:
+    token = st.session_state.get("ags_data_token")
+    if not token:
+        token = uuid.uuid4().hex
+        st.session_state["ags_data_token"] = token
+
+    RUNTIME_DATA_DIR.mkdir(exist_ok=True)
+    (RUNTIME_DATA_DIR / f"{token}.bin").write_bytes(content)
+    (RUNTIME_DATA_DIR / f"{token}.json").write_text(
+        json.dumps({"source_name": source_name}),
+        encoding="utf-8",
+    )
+
+
+def restore_cached_ags_from_query() -> None:
+    if "ags_content" in st.session_state:
+        return
+
+    token = st.query_params.get("data_token")
+    if not token or not re.fullmatch(r"[0-9a-f]{32}", token):
+        return
+
+    data_path = RUNTIME_DATA_DIR / f"{token}.bin"
+    meta_path = RUNTIME_DATA_DIR / f"{token}.json"
+    if not data_path.exists() or not meta_path.exists():
+        return
+
+    try:
+        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        metadata = {}
+    st.session_state["ags_data_token"] = token
+    st.session_state["ags_source_name"] = str(metadata.get("source_name") or data_path.name)
+    st.session_state["ags_content"] = data_path.read_bytes()
 
 
 def inject_custom_css() -> None:
@@ -441,9 +499,12 @@ def render_home_screen() -> None:
     if uploaded is not None:
         st.session_state["ags_source_name"] = uploaded.name
         st.session_state["ags_content"] = uploaded.getvalue()
+        persist_ags_session(uploaded.name, uploaded.getvalue())
     elif local_path is not None:
         st.session_state["ags_source_name"] = str(local_path)
-        st.session_state["ags_content"] = local_path.read_bytes()
+        content = local_path.read_bytes()
+        st.session_state["ags_content"] = content
+        persist_ags_session(str(local_path), content)
 
     if "ags_content" not in st.session_state:
         st.info("Upload an AGS file to begin. This first version also accepts AGS-style Excel exports.")
@@ -629,30 +690,50 @@ def render_home_screen() -> None:
 def render_module_grid(modules: list[dict[str, object]]) -> None:
     available_modules = [module for module in modules if not bool(module["disabled"])]
     featured = available_modules[0] if available_modules else modules[0]
-    sidebar_col, panel_col = st.columns([0.31, 0.69], gap="medium")
-    with sidebar_col:
-        st.markdown('<p class="ags-module-sidebar-note">Open an analysis workspace</p>', unsafe_allow_html=True)
-        for module in modules:
-            if st.button(
-                str(module["title"]),
-                key=f"open_{module['screen']}",
-                disabled=bool(module["disabled"]),
-                use_container_width=True,
-            ):
-                st.session_state["screen"] = str(module["screen"])
-                st.rerun()
-    with panel_col:
-        st.markdown(render_module_overview_panel(featured, modules), unsafe_allow_html=True)
+    if "ags_content" in st.session_state and not st.session_state.get("ags_data_token"):
+        persist_ags_session(
+            str(st.session_state.get("ags_source_name", "uploaded_ags_data")),
+            st.session_state["ags_content"],
+        )
+    token = st.session_state.get("ags_data_token", "")
+    sidebar_items = []
+    panels = []
+    for index, module in enumerate(modules):
+        item_class = f"ags-workspace-item item-{index}"
+        title = html.escape(str(module["title"]))
+        if bool(module["disabled"]):
+            sidebar_items.append(f'<span class="{item_class} disabled">{title}</span>')
+        else:
+            screen = html.escape(str(module["screen"]))
+            token_query = f"&data_token={html.escape(str(token))}" if token else ""
+            sidebar_items.append(f'<a class="{item_class}" href="?screen={screen}{token_query}">{title}</a>')
+        panels.append(render_module_overview_panel(module, modules, index))
+
+    st.html(
+        f"""
+        <div class="ags-workspace">
+            <div>
+                <p class="ags-module-sidebar-note">Open an analysis workspace</p>
+                <div class="ags-workspace-list">
+                    {''.join(sidebar_items)}
+                </div>
+            </div>
+            <div class="ags-workspace-panels">
+                {''.join(panels)}
+            </div>
+        </div>
+        """
+    )
 
 
-def render_module_overview_panel(module: dict[str, object], modules: list[dict[str, object]]) -> str:
+def render_module_overview_panel(module: dict[str, object], modules: list[dict[str, object]], index: int) -> str:
     title = html.escape(str(module["title"]))
     description = html.escape(str(module["description"]))
     summary = html.escape(module_summary(str(module["screen"])))
     count = html.escape(str(module["count"]))
     available_count = sum(1 for candidate in modules if not bool(candidate["disabled"]))
     return f"""
-        <div class="ags-module-panel">
+        <div class="ags-module-panel ags-hover-panel panel-{index}">
             <div>
                 <h3>{title}</h3>
                 <p>{description}</p>
