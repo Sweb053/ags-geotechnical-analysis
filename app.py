@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 from io import BytesIO
+import json
 import math
 from pathlib import Path
 import re
@@ -11,8 +12,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
-import pydeck as pdk
 import streamlit as st
+import streamlit.components.v1 as components
 from pyproj import Transformer
 from typing import Any
 
@@ -2521,88 +2522,93 @@ def render_aerial_map(
         st.warning("The selected coordinates cannot be converted to latitude/longitude for an aerial basemap.")
         return
 
-    center_lat = float(aerial_data["LATITUDE"].mean())
-    center_lon = float(aerial_data["LONGITUDE"].mean())
-    highlighted = aerial_data[aerial_data["HAS_SELECTED_GEOLOGY"]]
-    unhighlighted = aerial_data[~aerial_data["HAS_SELECTED_GEOLOGY"]]
-
-    tile_layer = pdk.Layer(
-        "TileLayer",
-        data="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        min_zoom=0,
-        max_zoom=19,
-        tile_size=256,
-        render_sub_layers={
-            "@@type": "BitmapLayer",
-            "data": "@@=data",
-            "image": "@@=data",
-            "bounds": "@@=bbox",
-        },
-    )
-    layers = [tile_layer]
-    if not unhighlighted.empty:
-        layers.append(
-            pdk.Layer(
-                "ScatterplotLayer",
-                data=unhighlighted,
-                get_position="[LONGITUDE, LATITUDE]",
-                get_fill_color=[107, 109, 118, 190],
-                get_line_color=[255, 255, 255, 230],
-                get_radius=8,
-                radius_units="meters",
-                pickable=True,
-            )
-        )
-    if not highlighted.empty:
-        layers.append(
-            pdk.Layer(
-                "ScatterplotLayer",
-                data=highlighted,
-                get_position="[LONGITUDE, LATITUDE]",
-                get_fill_color=[76, 149, 108, 235],
-                get_line_color=[255, 255, 255, 255],
-                get_radius=12,
-                radius_units="meters",
-                pickable=True,
-            )
-        )
-    layers.append(
-        pdk.Layer(
-            "TextLayer",
-            data=aerial_data,
-            get_position="[LONGITUDE, LATITUDE]",
-            get_text="MAP_LABEL",
-            get_size=13,
-            get_color=[255, 255, 255, 255],
-            get_angle=0,
-            get_text_anchor="start",
-            get_alignment_baseline="top",
-            get_pixel_offset=[8, 8],
-            background=True,
-            get_background_color=[0, 43, 91, 210],
-            pickable=False,
-        )
-    )
-
-    deck = pdk.Deck(
-        layers=layers,
-        initial_view_state=pdk.ViewState(
-            latitude=center_lat,
-            longitude=center_lon,
-            zoom=13,
-            pitch=0,
-            bearing=0,
-        ),
-        tooltip={
-            "html": "<b>{LOCA_ID}</b><br/>{GEOLOGY_LABEL}",
-            "style": {"backgroundColor": "#002b5b", "color": "white"},
-        },
-        map_provider=None,
-    )
-    st.pydeck_chart(deck, use_container_width=True)
+    map_html = build_leaflet_aerial_map_html(aerial_data)
+    components.html(map_html, height=560)
     st.caption(
         "Aerial imagery is loaded from Esri World Imagery. Labels show the investigation name and selected geology ranges."
     )
+
+
+def build_leaflet_aerial_map_html(aerial_data: pd.DataFrame) -> str:
+    records = []
+    for _, row in aerial_data.iterrows():
+        records.append(
+            {
+                "id": str(row["LOCA_ID"]),
+                "lat": float(row["LATITUDE"]),
+                "lon": float(row["LONGITUDE"]),
+                "label": str(row["MAP_LABEL"]),
+                "geology": str(row["GEOLOGY_LABEL"]),
+                "highlighted": bool(row["HAS_SELECTED_GEOLOGY"]),
+            }
+        )
+    payload = json.dumps(records).replace("</", "<\\/")
+    return f"""
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    html, body, #map {{ height: 100%; margin: 0; background: #ffffff; }}
+    .ags-map-label {{
+      color: #1f2933;
+      background: rgba(255, 255, 255, 0.86);
+      border: 1px solid rgba(31, 41, 51, 0.28);
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+      font: 12px/1.25 Arial, sans-serif;
+      padding: 3px 5px;
+      white-space: pre-line;
+    }}
+    .ags-map-label::before {{ display: none; }}
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const points = {payload};
+    const map = L.map("map", {{ scrollWheelZoom: true }});
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}", {{
+      maxZoom: 19,
+      attribution: "Tiles &copy; Esri"
+    }}).addTo(map);
+
+    const bounds = [];
+    points.forEach((point) => {{
+      const latLng = [point.lat, point.lon];
+      bounds.push(latLng);
+      const fillColor = point.highlighted ? "#4C956C" : "#6B6D76";
+      const radius = point.highlighted ? 7 : 5;
+      const marker = L.circleMarker(latLng, {{
+        radius,
+        color: "#ffffff",
+        weight: 1.4,
+        fillColor,
+        fillOpacity: 0.95
+      }}).addTo(map);
+      const popupText = point.geology ? `<strong>${{point.id}}</strong><br>${{point.geology}}` : `<strong>${{point.id}}</strong>`;
+      marker.bindPopup(popupText);
+      marker.bindTooltip(point.label, {{
+        permanent: true,
+        direction: "bottom",
+        offset: [0, 10],
+        opacity: 1,
+        className: "ags-map-label"
+      }});
+    }});
+
+    if (bounds.length === 1) {{
+      map.setView(bounds[0], 17);
+    }} else {{
+      map.fitBounds(bounds, {{ padding: [40, 40], maxZoom: 18 }});
+    }}
+  </script>
+</body>
+</html>
+"""
 
 
 @st.cache_data(show_spinner=False)
