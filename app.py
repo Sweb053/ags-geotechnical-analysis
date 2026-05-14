@@ -348,11 +348,16 @@ def inject_custom_css() -> None:
             text-decoration: none;
             font-weight: 650;
         }}
-        .ags-workspace-item:hover,
-        .ags-workspace-item.active {{
+        .ags-workspace-item:link,
+        .ags-workspace-item:visited {{
+            color: #222222;
+            text-decoration: none;
+        }}
+        .ags-workspace-item:hover {{
             border-color: var(--ags-active);
             background: var(--ags-active);
             color: #ffffff;
+            text-decoration: none;
         }}
         .ags-workspace-item.disabled {{
             pointer-events: none;
@@ -646,10 +651,7 @@ def render_module_grid(modules: list[dict[str, object]]) -> None:
     sidebar_items = []
     panels = []
     for index, module in enumerate(modules):
-        item_class = "ags-workspace-item"
-        if module is featured:
-            item_class += " active"
-        item_class += f" item-{index}"
+        item_class = f"ags-workspace-item item-{index}"
         title = html.escape(str(module["title"]))
         if bool(module["disabled"]):
             sidebar_items.append(f'<span class="{item_class} disabled">{title}</span>')
@@ -657,7 +659,7 @@ def render_module_grid(modules: list[dict[str, object]]) -> None:
             sidebar_items.append(f'<a class="{item_class}" href="?screen={html.escape(str(module["screen"]))}">{title}</a>')
         panels.append(render_module_overview_panel(module, modules, index))
 
-    st.markdown(
+    st.html(
         f"""
         <div class="ags-workspace">
             <div>
@@ -670,8 +672,7 @@ def render_module_grid(modules: list[dict[str, object]]) -> None:
                 {''.join(panels)}
             </div>
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
