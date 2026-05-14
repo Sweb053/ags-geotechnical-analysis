@@ -2255,7 +2255,7 @@ def render_ivan_plot(
         color_by=color_by,
         x_column="IVAN_IVAN_NUM",
         y_column="IVAN_DPTH_NUM",
-        x_label="Hand shear vane reading",
+        x_label="Undrained shear strength, Cu",
         y_label="Depth below ground level (m)",
     )
 
@@ -2271,7 +2271,7 @@ def render_ucs_plot(
         color_by=color_by,
         x_column="RUCS_UCS_NUM",
         y_column="SAMP_TOP_NUM",
-        x_label="Unconfined compressive strength",
+        x_label="Unconfined compressive strength (MPa)",
         y_label="Sample top depth below ground level (m)",
     )
 
@@ -2484,7 +2484,6 @@ def build_map_png(
     ax.set_xlabel(x_label, fontsize=10, color="#333333")
     ax.set_ylabel(y_label, fontsize=10, color="#333333")
     ax.tick_params(axis="both", colors="#444444", labelsize=8)
-    ax.grid(True, which="major", color="#d8d8d8", linewidth=0.7)
     ax.set_aspect("equal", adjustable="datalim")
     ax.margins(x=0.06, y=0.08)
 
@@ -2535,7 +2534,7 @@ def render_aerial_map(
         tile_size=256,
         render_sub_layers={
             "@@type": "BitmapLayer",
-            "data": None,
+            "data": "@@=data",
             "image": "@@=data",
             "bounds": "@@=bbox",
         },
@@ -2904,7 +2903,6 @@ def build_geological_profile_png(data: pd.DataFrame, title: str) -> bytes:
     ax.set_xticks(range(len(locas)))
     ax.set_xticklabels(locas, rotation=45, ha="right", fontsize=8)
     ax.tick_params(axis="y", colors="#444444", labelsize=9)
-    ax.grid(True, axis="y", color="#d8d8d8", linewidth=0.7)
     ax.set_axisbelow(True)
 
     handles, labels = ax.get_legend_handles_labels()
@@ -3056,8 +3054,6 @@ def build_depth_scatter_png(
         ax.set_xticks(ticks)
         ax.set_xticklabels([x_tick_labels[tick] for tick in ticks], rotation=rotation, ha="right")
     ax.tick_params(axis="both", colors="#444444", labelsize=9)
-    ax.grid(True, which="major", color="#d8d8d8", linewidth=0.7)
-    ax.grid(True, which="minor", color="#eeeeee", linewidth=0.45)
     ax.minorticks_on()
     ax.set_axisbelow(True)
     ax.margins(x=0.04, y=0.04)
@@ -3250,8 +3246,6 @@ def build_psd_png(data: pd.DataFrame, title: str, design_line: str = "Off") -> b
     ax.set_xlabel("Particle size (mm)", fontsize=10, color="#333333")
     ax.set_ylabel("Percentage passing (%)", fontsize=10, color="#333333")
     ax.tick_params(axis="both", colors="#444444", labelsize=9)
-    ax.grid(True, which="major", color="#d8d8d8", linewidth=0.7)
-    ax.grid(True, which="minor", color="#eeeeee", linewidth=0.45)
     ax.set_axisbelow(True)
 
     for spine in ax.spines.values():
