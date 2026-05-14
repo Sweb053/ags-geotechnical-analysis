@@ -25,3 +25,13 @@ streamlit run app.py
 ```
 
 Then upload an AGS file or the provided AGS-style Excel export.
+
+## Streamlit Community Cloud
+
+Set the main file path to:
+
+```text
+app.py
+```
+
+The repository also includes `streamlit_app.py` as a thin wrapper for deployments that expect that conventional filename.
