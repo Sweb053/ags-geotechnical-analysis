@@ -96,6 +96,25 @@ def load_analysis_data(file_name: str, content: bytes):
 def main() -> None:
     inject_custom_css()
     st.session_state.setdefault("screen", "home")
+    requested_screen = st.query_params.get("screen")
+    valid_screens = {
+        "home",
+        "spt",
+        "ivan",
+        "ucs",
+        "rqd",
+        "atterberg",
+        "pointload",
+        "psd",
+        "groundwater",
+        "map",
+        "geological_model",
+        "summary_stats",
+        "bre_sulphate",
+    }
+    if requested_screen in valid_screens:
+        st.session_state["screen"] = requested_screen
+        st.query_params.clear()
 
     if st.session_state["screen"] == "spt":
         render_spt_screen()
@@ -152,34 +171,8 @@ def inject_custom_css() -> None:
             color: var(--ags-ink);
             letter-spacing: 0;
         }}
-        .ags-top-nav {{
-            max-width: 1040px;
-            margin: 0 auto 4.2rem auto;
-            padding: 0.38rem;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.92);
-            border: 1px solid #eeeeee;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.035);
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 0.25rem;
-            color: #777777;
-            font-size: 0.95rem;
-        }}
-        .ags-top-nav span {{
-            display: block;
-            text-align: center;
-            padding: 0.62rem 1rem;
-            border-radius: 999px;
-            white-space: nowrap;
-        }}
-        .ags-top-nav .active {{
-            background: var(--ags-active);
-            color: #ffffff;
-            font-weight: 700;
-        }}
         .ags-hero {{
-            margin: 0 0 2rem 0;
+            margin: 3rem 0 2rem 0;
         }}
         .ags-kicker {{
             margin: 0 0 0.4rem 0;
@@ -202,13 +195,6 @@ def inject_custom_css() -> None:
             max-width: 760px;
             font-size: 1rem;
             line-height: 1.6;
-        }}
-        .ags-upload-shell {{
-            border: 1px solid var(--ags-line);
-            border-radius: 22px;
-            padding: 1.25rem 1.35rem 1.35rem 1.35rem;
-            background: #ffffff;
-            margin-bottom: 1.2rem;
         }}
         .ags-status {{
             border: 1px solid var(--ags-line);
@@ -340,6 +326,72 @@ def inject_custom_css() -> None:
             font-size: 0.9rem;
             margin-bottom: 0.9rem;
         }}
+        .ags-workspace {{
+            display: grid;
+            grid-template-columns: minmax(230px, 0.31fr) minmax(0, 0.69fr);
+            gap: 2rem;
+            align-items: start;
+        }}
+        .ags-workspace-list {{
+            display: grid;
+            gap: 0.85rem;
+        }}
+        .ags-workspace-item {{
+            display: block;
+            border: 1px solid #e4e4e2;
+            border-radius: 12px;
+            background: #ffffff;
+            color: #222222;
+            min-height: 3.05rem;
+            padding: 0.88rem 1rem;
+            text-align: center;
+            text-decoration: none;
+            font-weight: 650;
+        }}
+        .ags-workspace-item:hover,
+        .ags-workspace-item.active {{
+            border-color: var(--ags-active);
+            background: var(--ags-active);
+            color: #ffffff;
+        }}
+        .ags-workspace-item.disabled {{
+            pointer-events: none;
+            background: #eeeeec;
+            border-color: #eeeeec;
+            color: #9a9a98;
+        }}
+        .ags-workspace-panels {{
+            position: relative;
+        }}
+        .ags-hover-panel {{
+            display: none;
+        }}
+        .ags-hover-panel.panel-0 {{
+            display: grid;
+        }}
+        .ags-workspace:has(.ags-workspace-item:hover) .ags-hover-panel {{
+            display: none;
+        }}
+        .ags-workspace:has(.item-0:hover) .panel-0,
+        .ags-workspace:has(.item-1:hover) .panel-1,
+        .ags-workspace:has(.item-2:hover) .panel-2,
+        .ags-workspace:has(.item-3:hover) .panel-3,
+        .ags-workspace:has(.item-4:hover) .panel-4,
+        .ags-workspace:has(.item-5:hover) .panel-5,
+        .ags-workspace:has(.item-6:hover) .panel-6,
+        .ags-workspace:has(.item-7:hover) .panel-7,
+        .ags-workspace:has(.item-8:hover) .panel-8,
+        .ags-workspace:has(.item-9:hover) .panel-9,
+        .ags-workspace:has(.item-10:hover) .panel-10,
+        .ags-workspace:has(.item-11:hover) .panel-11 {{
+            display: grid;
+        }}
+        @media (max-width: 820px) {{
+            .ags-workspace,
+            .ags-module-panel {{
+                grid-template-columns: 1fr;
+            }}
+        }}
         div.stButton > button {{
             border-radius: 12px;
             border: 1px solid #e4e4e2;
@@ -381,7 +433,6 @@ def inject_custom_css() -> None:
 
 
 def render_home_screen() -> None:
-    render_top_nav("Applications")
     st.markdown(
         """
         <div class="ags-hero">
@@ -393,7 +444,6 @@ def render_home_screen() -> None:
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div class="ags-upload-shell">', unsafe_allow_html=True)
     uploaded = st.file_uploader(
         "Upload AGS data",
         type=["ags", "csv", "txt", "xlsx"],
@@ -401,7 +451,6 @@ def render_home_screen() -> None:
     )
 
     local_path = render_local_file_loader(uploaded is None)
-    st.markdown("</div>", unsafe_allow_html=True)
 
     if uploaded is not None:
         st.session_state["ags_source_name"] = uploaded.name
@@ -591,50 +640,53 @@ def render_home_screen() -> None:
     render_module_grid(modules)
 
 
-def render_top_nav(active: str) -> None:
-    items = ["Overview", "Applications", "What's New", "Resources", "Pricing"]
-    markup = "".join(
-        f'<span class="active">{html.escape(item)}</span>' if item == active else f"<span>{html.escape(item)}</span>"
-        for item in items
-    )
-    st.markdown(f'<div class="ags-top-nav">{markup}</div>', unsafe_allow_html=True)
-
-
 def render_module_grid(modules: list[dict[str, object]]) -> None:
     available_modules = [module for module in modules if not bool(module["disabled"])]
     featured = available_modules[0] if available_modules else modules[0]
-    sidebar_col, panel_col = st.columns([0.31, 0.69], gap="medium")
-    with sidebar_col:
-        st.markdown('<p class="ags-module-sidebar-note">Open an analysis workspace</p>', unsafe_allow_html=True)
-        for index, module in enumerate(modules):
-            label = str(module["title"])
-            button_type = "primary" if module is featured else "secondary"
-            if st.button(
-                label,
-                key=f"open_{module['screen']}",
-                disabled=bool(module["disabled"]),
-                use_container_width=True,
-                type=button_type,
-            ):
-                st.session_state["screen"] = str(module["screen"])
-                st.rerun()
+    sidebar_items = []
+    panels = []
+    for index, module in enumerate(modules):
+        item_class = "ags-workspace-item"
+        if module is featured:
+            item_class += " active"
+        item_class += f" item-{index}"
+        title = html.escape(str(module["title"]))
+        if bool(module["disabled"]):
+            sidebar_items.append(f'<span class="{item_class} disabled">{title}</span>')
+        else:
+            sidebar_items.append(f'<a class="{item_class}" href="?screen={html.escape(str(module["screen"]))}">{title}</a>')
+        panels.append(render_module_overview_panel(module, modules, index))
 
-    with panel_col:
-        render_module_overview_panel(featured, modules)
-
-
-def render_module_overview_panel(module: dict[str, object], modules: list[dict[str, object]]) -> None:
-    title = html.escape(str(module["title"]))
-    description = html.escape(str(module["description"]))
-    count = html.escape(str(module["count"]))
-    available_count = sum(1 for candidate in modules if not bool(candidate["disabled"]))
     st.markdown(
         f"""
-        <div class="ags-module-panel">
+        <div class="ags-workspace">
+            <div>
+                <p class="ags-module-sidebar-note">Open an analysis workspace</p>
+                <div class="ags-workspace-list">
+                    {''.join(sidebar_items)}
+                </div>
+            </div>
+            <div class="ags-workspace-panels">
+                {''.join(panels)}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_module_overview_panel(module: dict[str, object], modules: list[dict[str, object]], index: int) -> str:
+    title = html.escape(str(module["title"]))
+    description = html.escape(str(module["description"]))
+    summary = html.escape(module_summary(str(module["screen"])))
+    count = html.escape(str(module["count"]))
+    available_count = sum(1 for candidate in modules if not bool(candidate["disabled"]))
+    return f"""
+        <div class="ags-module-panel ags-hover-panel panel-{index}">
             <div>
                 <h3>{title}</h3>
                 <p>{description}</p>
-                <p>Use the module list to open filtered charts, matched source data, design-line summaries, and exportable engineering figures from the loaded AGS dataset.</p>
+                <p>{summary}</p>
                 <div class="ags-module-meta">
                     <span class="ags-count">{count}</span>
                     <span class="ags-count">{available_count} modules available</span>
@@ -658,9 +710,25 @@ def render_module_overview_panel(module: dict[str, object], modules: list[dict[s
                 </div>
             </div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
+
+
+def module_summary(screen: str) -> str:
+    summaries = {
+        "spt": "Review raw or corrected N60 values against depth, isolate material classes or model units, and export presentation-ready SPT plots.",
+        "ivan": "Plot undrained shear strength, Cu, from hand shear vane records and compare selected investigations against matched geological units.",
+        "ucs": "Assess UCS results in MPa by depth, filter by geology or material class, and review the linked sample rows behind each plotted value.",
+        "rqd": "Inspect RQD variation through rock core runs, separating bedrock units and matched strata for rock mass quality review.",
+        "atterberg": "Compare liquid limit, plastic limit, and plasticity index datasets with consistent filtering across investigations and geology.",
+        "pointload": "Plot point load strength index by sample depth and use geology filters to develop rock strength summaries.",
+        "psd": "Review particle size distribution curves with soil fraction bands, selected sample curves, and optional statistical design curves.",
+        "groundwater": "Review groundwater strike depths by investigation without geology filters, focused on strike and post-strike observations.",
+        "map": "Map selected investigations over aerial or static basemaps and label boreholes with merged geology depth ranges.",
+        "geological_model": "Build a searchable geological model from GEOL strata, material classes, model units, and bedrock lithology descriptions.",
+        "summary_stats": "Create cautious estimates and means for selected modules, including custom combined geology groups for reporting tables.",
+        "bre_sulphate": "Calculate BRE DS and ACEC classes from GCHM chemistry and summarise filtered sulphate design classifications.",
+    }
+    return summaries.get(screen, "Open this workspace to review filtered AGS data, linked geology, plots, and exports.")
 
 
 def render_spt_screen() -> None:
