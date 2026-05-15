@@ -50,6 +50,7 @@ DESIGN_LINE_OPTIONS = [
     "Lower cautious estimate",
     "Upper cautious estimate",
     "Mean trend",
+    "Custom line",
 ]
 UI_NAVY = "#002b5b"
 UI_WHITE = "#ffffff"
@@ -2686,12 +2687,27 @@ def render_psd_plot(data: pd.DataFrame) -> None:
             "confidence bound at each particle size."
         ),
     )
-    show_design_line = design_line != "Off"
-    if show_design_line and data["PSD_SAMPLE_ID"].nunique() < 3:
+    custom_lines: tuple[tuple[str, tuple[tuple[float, float], ...]], ...] = tuple()
+    if design_line == "Custom line":
+        custom_lines = render_custom_design_line_editor(
+            title,
+            "Particle size (mm)",
+            "Percentage passing (%)",
+            positive_x=True,
+        )
+        if not custom_lines:
+            st.warning("Add at least two valid positive particle-size rows with the same line name to plot a custom design line.")
+    show_design_line = design_line != "Off" and (design_line != "Custom line" or bool(custom_lines))
+    if design_line != "Custom line" and show_design_line and data["PSD_SAMPLE_ID"].nunique() < 3:
         st.warning("At least three selected PSD curves are needed for a statistical design curve.")
         show_design_line = False
 
-    png_bytes = build_psd_png(data, title, design_line if show_design_line else "Off")
+    png_bytes = build_psd_png(
+        data,
+        title,
+        design_line if show_design_line else "Off",
+        custom_lines,
+    )
     st.image(png_bytes, use_container_width=True)
     st.download_button(
         "Download graph PNG",
@@ -2699,11 +2715,13 @@ def render_psd_plot(data: pd.DataFrame) -> None:
         file_name=f"{slugify(title)}.png",
         mime="image/png",
     )
-    if show_design_line:
+    if show_design_line and design_line != "Custom line":
         st.caption(
             "The PSD design curve is recalculated from the selected curves and uses a one-sided 95% "
             "confidence bound at each particle size."
         )
+    if show_design_line and design_line == "Custom line":
+        st.caption("The custom design line is drawn from the coordinate table above and is included in the PNG export.")
 
 
 @st.cache_data(show_spinner=False)
@@ -3246,8 +3264,13 @@ def render_depth_scatter_plot(
             "confidence bound as a cautious estimate."
         ),
     )
-    show_design_line = design_line != "Off"
-    if show_design_line and len(data.dropna(subset=[x_column, y_column])) < 3:
+    custom_lines: tuple[tuple[str, tuple[tuple[float, float], ...]], ...] = tuple()
+    if design_line == "Custom line":
+        custom_lines = render_custom_design_line_editor(title, x_label, y_label)
+        if not custom_lines:
+            st.warning("Add at least two valid coordinate rows with the same line name to plot a custom design line.")
+    show_design_line = design_line != "Off" and (design_line != "Custom line" or bool(custom_lines))
+    if design_line != "Custom line" and show_design_line and len(data.dropna(subset=[x_column, y_column])) < 3:
         st.warning("At least three plotted records are needed for a statistical design line.")
         show_design_line = False
 
@@ -3261,6 +3284,7 @@ def render_depth_scatter_plot(
         y_label,
         design_line if show_design_line else "Off",
         x_tick_labels,
+        custom_lines,
     )
     st.image(
         png_bytes,
@@ -3278,11 +3302,67 @@ def render_depth_scatter_plot(
             "A single colour is used when more than 12 investigations are plotted. "
             "Using a separate colour for every investigation would make the graph and legend unreadable."
         )
-    if show_design_line:
+    if show_design_line and design_line != "Custom line":
         st.caption(
             "The design line is recalculated from the records visible in this plot. "
             "The cautious estimate uses a one-sided 95% confidence bound on the fitted mean trend."
         )
+    if show_design_line and design_line == "Custom line":
+        st.caption("The custom design line is drawn from the coordinate table above and is included in the PNG export.")
+
+
+def render_custom_design_line_editor(
+    title: str,
+    x_label: str,
+    y_label: str,
+    positive_x: bool = False,
+) -> tuple[tuple[str, tuple[tuple[float, float], ...]], ...]:
+    key = f"custom_design_line_{slugify(title)}"
+    default_rows = pd.DataFrame(
+        [
+            {"Line": "Line 1", "X": None, "Y": None},
+            {"Line": "Line 1", "X": None, "Y": None},
+        ]
+    )
+    edited = st.data_editor(
+        default_rows,
+        key=key,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Line": st.column_config.TextColumn("Line", help="Rows with the same line name are connected together."),
+            "X": st.column_config.NumberColumn(f"X - {x_label}", format="%.3f"),
+            "Y": st.column_config.NumberColumn(f"Y - {y_label}", format="%.3f"),
+        },
+    )
+    return parse_custom_design_lines(edited, positive_x=positive_x)
+
+
+def parse_custom_design_lines(
+    rows: pd.DataFrame,
+    positive_x: bool = False,
+) -> tuple[tuple[str, tuple[tuple[float, float], ...]], ...]:
+    if rows.empty or not {"Line", "X", "Y"}.issubset(rows.columns):
+        return tuple()
+
+    prepared = rows.copy()
+    prepared["Line"] = prepared["Line"].fillna("Line 1").astype(str).str.strip()
+    prepared.loc[prepared["Line"] == "", "Line"] = "Line 1"
+    prepared["X"] = pd.to_numeric(prepared["X"], errors="coerce")
+    prepared["Y"] = pd.to_numeric(prepared["Y"], errors="coerce")
+    prepared = prepared.dropna(subset=["X", "Y"]).copy()
+    if positive_x:
+        prepared = prepared[prepared["X"] > 0].copy()
+    if prepared.empty:
+        return tuple()
+
+    parsed_lines: list[tuple[str, tuple[tuple[float, float], ...]]] = []
+    for line_name, group in prepared.groupby("Line", sort=False):
+        points = tuple((float(row["X"]), float(row["Y"])) for _, row in group.iterrows())
+        if len(points) >= 2:
+            parsed_lines.append((str(line_name), points))
+    return tuple(parsed_lines)
 
 
 @st.cache_data(show_spinner=False)
@@ -3296,6 +3376,7 @@ def build_depth_scatter_png(
     y_label: str,
     design_line: str = "Off",
     x_tick_labels: dict[int, str] | None = None,
+    custom_lines: tuple[tuple[str, tuple[tuple[float, float], ...]], ...] = tuple(),
 ) -> bytes:
     fig, ax = plt.subplots(figsize=(8.2, 5.8), dpi=150)
     fig.patch.set_facecolor("white")
@@ -3341,6 +3422,9 @@ def build_depth_scatter_png(
             zorder=5,
         )
         show_legend = True
+    if custom_lines:
+        plot_custom_design_lines(ax, custom_lines)
+        show_legend = True
 
     ax.invert_yaxis()
     ax.set_title(title, fontsize=11, weight="semibold", color="#222222", pad=10)
@@ -3376,6 +3460,28 @@ def build_depth_scatter_png(
     fig.savefig(buffer, format="png", bbox_inches="tight", facecolor="white")
     plt.close(fig)
     return buffer.getvalue()
+
+
+def plot_custom_design_lines(
+    ax: plt.Axes,
+    custom_lines: tuple[tuple[str, tuple[tuple[float, float], ...]], ...],
+) -> None:
+    for index, (line_name, points) in enumerate(custom_lines):
+        if len(points) < 2:
+            continue
+        line_x = [point[0] for point in points]
+        line_y = [point[1] for point in points]
+        ax.plot(
+            line_x,
+            line_y,
+            color=DESIGN_LINE_COLOR,
+            linewidth=2.0,
+            linestyle="-" if index == 0 else "--",
+            marker="s",
+            markersize=3.0,
+            label=line_name,
+            zorder=6,
+        )
 
 
 def calculate_design_line(
@@ -3502,7 +3608,12 @@ def t_critical_one_sided_95(degrees_freedom: int) -> float:
 
 
 @st.cache_data(show_spinner=False)
-def build_psd_png(data: pd.DataFrame, title: str, design_line: str = "Off") -> bytes:
+def build_psd_png(
+    data: pd.DataFrame,
+    title: str,
+    design_line: str = "Off",
+    custom_lines: tuple[tuple[str, tuple[tuple[float, float], ...]], ...] = tuple(),
+) -> bytes:
     fig, ax = plt.subplots(figsize=(8.2, 5.8), dpi=150)
     fig.patch.set_facecolor("white")
     ax.set_facecolor("white")
@@ -3535,6 +3646,9 @@ def build_psd_png(data: pd.DataFrame, title: str, design_line: str = "Off") -> b
             label=label,
             zorder=6,
         )
+        show_legend = True
+    if custom_lines:
+        plot_custom_design_lines(ax, custom_lines)
         show_legend = True
 
     ax.set_xscale("log")

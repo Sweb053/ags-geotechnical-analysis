@@ -5,6 +5,7 @@ from app import (
     calculate_psd_design_line,
     calculate_scalar_summary,
     interpolate_psd_d_value,
+    parse_custom_design_lines,
     t_critical_one_sided_95,
 )
 
@@ -34,6 +35,37 @@ def test_calculate_design_line_returns_none_for_small_dataset() -> None:
     data = pd.DataFrame({"VALUE": [10.0, 12.0], "DEPTH": [1.0, 2.0]})
 
     assert calculate_design_line(data, "VALUE", "DEPTH", "Lower cautious estimate") is None
+
+
+def test_parse_custom_design_lines_groups_multiline_coordinates() -> None:
+    rows = pd.DataFrame(
+        {
+            "Line": ["Line A", "Line A", "Line B", "Line B", "Line C"],
+            "X": [10, 15, 20, 25, 30],
+            "Y": [1, 3, 2, 4, 5],
+        }
+    )
+
+    parsed = parse_custom_design_lines(rows)
+
+    assert parsed == (
+        ("Line A", ((10.0, 1.0), (15.0, 3.0))),
+        ("Line B", ((20.0, 2.0), (25.0, 4.0))),
+    )
+
+
+def test_parse_custom_design_lines_can_require_positive_x_values() -> None:
+    rows = pd.DataFrame(
+        {
+            "Line": ["PSD line", "PSD line", "PSD line"],
+            "X": [0.0, 0.063, 2.0],
+            "Y": [10.0, 25.0, 70.0],
+        }
+    )
+
+    parsed = parse_custom_design_lines(rows, positive_x=True)
+
+    assert parsed == (("PSD line", ((0.063, 25.0), (2.0, 70.0))),)
 
 
 def test_calculate_psd_design_line_uses_selected_curves() -> None:
