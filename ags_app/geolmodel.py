@@ -83,13 +83,14 @@ def add_geological_model_fields(data: pd.DataFrame) -> pd.DataFrame:
 
 def classify_material(unit: object, description: object) -> str:
     unit_text = str(unit).upper()
-    desc = str(description).upper()
+    desc_raw = str(description)
+    desc = desc_raw.upper()
 
     if "PEAT" in unit_text or "PEAT" in desc:
         return "Peat"
     if "TOP" in unit_text or "TOPSOIL" in desc or "MADE GROUND" in desc:
         return "Organic / Made Ground"
-    if unit_text in BEDROCK_UNITS or (has_bedrock_language(desc) and extract_bedrock_type(desc)):
+    if unit_text in BEDROCK_UNITS or (has_bedrock_language(desc) and extract_bedrock_type(desc_raw)):
         return "Rock / Bedrock"
 
     primary_soil = find_primary_soil(desc)
@@ -137,7 +138,7 @@ def find_primary_soil(description: str) -> str | None:
 
 
 def extract_bedrock_type(description: object) -> str | None:
-    desc = str(description).upper()
+    desc = str(description)
     words = re.findall(r"\b[A-Z]{3,}\b", desc)
     rock_words = [word for word in words if word in ROCK_TERMS and word not in NON_BEDROCK_CAPITAL_WORDS]
     if rock_words:

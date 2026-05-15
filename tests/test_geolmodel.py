@@ -12,6 +12,13 @@ def test_classify_material_distinguishes_glacial_till_cohesive_and_granular() ->
 def test_extract_bedrock_type_uses_capitalised_rock_word() -> None:
     assert extract_bedrock_type("Medium strong grey fine grained PSAMMITE.") == "PSAMMITE"
     assert extract_bedrock_type("Strong pink GRANITE with bands of SCHIST.") == "GRANITE / SCHIST"
+    assert (
+        extract_bedrock_type(
+            "Medium strong reddish brown micaceous PSAMMITE with frequent intrusive bands "
+            "of strong brownish red to light grey granite and occasional weak green schist bands."
+        )
+        == "PSAMMITE"
+    )
 
 
 def test_build_geological_model_adds_model_unit_and_thickness() -> None:
