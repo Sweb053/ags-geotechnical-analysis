@@ -136,6 +136,7 @@ def main() -> None:
         "geological_model",
         "summary_stats",
         "bre_sulphate",
+        "export",
     }
     if requested_screen in valid_screens:
         st.session_state["screen"] = requested_screen
@@ -169,6 +170,8 @@ def main() -> None:
         render_summary_stats_screen()
     elif st.session_state["screen"] == "bre_sulphate":
         render_bre_sulphate_screen()
+    elif st.session_state["screen"] == "export":
+        render_export_screen()
     else:
         render_home_screen()
 
@@ -770,6 +773,14 @@ def render_home_screen() -> None:
             "disabled": bre_sulphate.empty,
             "accent": True,
         },
+        {
+            "screen": "export",
+            "title": "Export AGS",
+            "description": "Download the currently loaded and edited AGS dataset.",
+            "count": "download",
+            "disabled": False,
+            "accent": False,
+        },
     ]
     render_module_grid(modules)
 
@@ -867,8 +878,14 @@ def module_summary(screen: str) -> str:
         "geological_model": "Build a searchable geological model from GEOL strata, material classes, model units, and bedrock lithology descriptions.",
         "summary_stats": "Create cautious estimates and means for selected modules, including custom combined geology groups for reporting tables.",
         "bre_sulphate": "Calculate BRE DS and ACEC classes from GCHM chemistry and summarise filtered sulphate design classifications.",
+        "export": "Download the edited session file after matched-data edits, with an optional AGS text export generated from the current parsed tables.",
     }
     return summaries.get(screen, "Open this workspace to review filtered AGS data, linked geology, plots, and exports.")
+
+
+def render_back_button() -> bool:
+    st.markdown('<div style="height: 1.6rem;"></div>', unsafe_allow_html=True)
+    return st.button("Back")
 
 
 def render_spt_screen() -> None:
@@ -876,7 +893,7 @@ def render_spt_screen() -> None:
     with header_col:
         st.title("Standard Penetration Tests")
     with action_col:
-        if st.button("Back"):
+        if render_back_button():
             st.session_state["screen"] = "home"
             st.rerun()
 
@@ -903,7 +920,7 @@ def render_ivan_screen() -> None:
     with header_col:
         st.title("Hand Shear Vane")
     with action_col:
-        if st.button("Back"):
+        if render_back_button():
             st.session_state["screen"] = "home"
             st.rerun()
 
@@ -930,7 +947,7 @@ def render_ucs_screen() -> None:
     with header_col:
         st.title("Unconfined Compressive Strength")
     with action_col:
-        if st.button("Back"):
+        if render_back_button():
             st.session_state["screen"] = "home"
             st.rerun()
 
@@ -957,7 +974,7 @@ def render_rqd_screen() -> None:
     with header_col:
         st.title("Rock Quality Designation")
     with action_col:
-        if st.button("Back"):
+        if render_back_button():
             st.session_state["screen"] = "home"
             st.rerun()
 
@@ -984,7 +1001,7 @@ def render_atterberg_screen() -> None:
     with header_col:
         st.title("Atterberg Limits")
     with action_col:
-        if st.button("Back"):
+        if render_back_button():
             st.session_state["screen"] = "home"
             st.rerun()
 
@@ -1011,7 +1028,7 @@ def render_pointload_screen() -> None:
     with header_col:
         st.title("Point Load Strength")
     with action_col:
-        if st.button("Back"):
+        if render_back_button():
             st.session_state["screen"] = "home"
             st.rerun()
 
@@ -1038,7 +1055,7 @@ def render_psd_screen() -> None:
     with header_col:
         st.title("Particle Size Distribution")
     with action_col:
-        if st.button("Back"):
+        if render_back_button():
             st.session_state["screen"] = "home"
             st.rerun()
 
@@ -1065,7 +1082,7 @@ def render_groundwater_screen() -> None:
     with header_col:
         st.title("Groundwater Strike")
     with action_col:
-        if st.button("Back"):
+        if render_back_button():
             st.session_state["screen"] = "home"
             st.rerun()
 
@@ -1092,7 +1109,7 @@ def render_moisture_screen() -> None:
     with header_col:
         st.title("Moisture Content")
     with action_col:
-        if st.button("Back"):
+        if render_back_button():
             st.session_state["screen"] = "home"
             st.rerun()
 
@@ -1119,7 +1136,7 @@ def render_unit_weight_screen() -> None:
     with header_col:
         st.title("Unit Weight")
     with action_col:
-        if st.button("Back"):
+        if render_back_button():
             st.session_state["screen"] = "home"
             st.rerun()
 
@@ -1146,7 +1163,7 @@ def render_map_screen() -> None:
     with header_col:
         st.title("Map Viewer")
     with action_col:
-        if st.button("Back"):
+        if render_back_button():
             st.session_state["screen"] = "home"
             st.rerun()
 
@@ -1177,7 +1194,7 @@ def render_geological_model_screen() -> None:
     with header_col:
         st.title("Geological Model")
     with action_col:
-        if st.button("Back"):
+        if render_back_button():
             st.session_state["screen"] = "home"
             st.rerun()
 
@@ -1207,7 +1224,7 @@ def render_summary_stats_screen() -> None:
     with header_col:
         st.title("Summary Stats")
     with action_col:
-        if st.button("Back"):
+        if render_back_button():
             st.session_state["screen"] = "home"
             st.rerun()
 
@@ -1244,7 +1261,7 @@ def render_bre_sulphate_screen() -> None:
     with header_col:
         st.title("BRE Sulphate Class")
     with action_col:
-        if st.button("Back"):
+        if render_back_button():
             st.session_state["screen"] = "home"
             st.rerun()
 
@@ -1267,6 +1284,66 @@ def render_bre_sulphate_screen() -> None:
         return
 
     render_bre_sulphate_module(bre_sulphate)
+
+
+def render_export_screen() -> None:
+    header_col, action_col = st.columns([1, 0.18])
+    with header_col:
+        st.title("Export AGS")
+    with action_col:
+        if render_back_button():
+            st.session_state["screen"] = "home"
+            st.rerun()
+
+    if "ags_content" not in st.session_state:
+        st.warning("Load AGS data before opening the Export module.")
+        if st.button("Go to upload"):
+            st.session_state["screen"] = "home"
+            st.rerun()
+        return
+
+    source_name = str(st.session_state.get("ags_source_name", "ags_data.ags"))
+    content = st.session_state["ags_content"]
+    st.caption("Downloads use the current in-app data, including matched-data edits saved with Save and lock.")
+
+    same_format_name = edited_download_filename(source_name)
+    st.download_button(
+        "Download edited loaded file",
+        data=content,
+        file_name=same_format_name,
+        mime=download_mime_type(same_format_name),
+        type="primary",
+    )
+
+    analysis = load_current_analysis_data()
+    parsed = analysis[0]
+    if parsed is None:
+        return
+
+    ags_name = edited_download_filename(source_name, suffix=".ags")
+    ags_bytes = serialise_uploaded_file(ags_name, parsed.tables)
+    st.download_button(
+        "Download AGS text export",
+        data=ags_bytes,
+        file_name=ags_name,
+        mime="text/plain",
+    )
+
+
+def edited_download_filename(source_name: str, suffix: str | None = None) -> str:
+    source_path = Path(source_name)
+    stem = source_path.stem or "ags_data"
+    output_suffix = suffix if suffix is not None else (source_path.suffix or ".ags")
+    return f"{stem}_edited{output_suffix}"
+
+
+def download_mime_type(file_name: str) -> str:
+    suffix = Path(file_name).suffix.lower()
+    if suffix == ".xlsx":
+        return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    if suffix in {".ags", ".csv", ".txt"}:
+        return "text/plain"
+    return "application/octet-stream"
 
 
 def load_current_analysis_data() -> tuple[Any, ...]:

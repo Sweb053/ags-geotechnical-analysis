@@ -1,3 +1,4 @@
+from app import download_mime_type, edited_download_filename
 from ags_app.parser import parse_ags_text
 
 
@@ -22,3 +23,13 @@ def test_parse_ags_text_detects_tab_delimiter() -> None:
         "ISPT_TOP": "1.20",
         "ISPT_MAIN": "12",
     }
+
+
+def test_edited_download_filename_preserves_or_overrides_suffix() -> None:
+    assert edited_download_filename(r"C:\data\project.ags") == "project_edited.ags"
+    assert edited_download_filename("project.xlsx", suffix=".ags") == "project_edited.ags"
+
+
+def test_download_mime_type_matches_supported_exports() -> None:
+    assert download_mime_type("project_edited.xlsx").startswith("application/vnd.openxmlformats")
+    assert download_mime_type("project_edited.ags") == "text/plain"
