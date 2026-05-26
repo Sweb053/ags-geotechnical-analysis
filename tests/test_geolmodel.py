@@ -59,6 +59,31 @@ def test_build_geological_model_adds_model_unit_and_thickness() -> None:
     assert result.loc[2, "THICKNESS_NUM"] == 2.5
 
 
+def test_build_geological_model_respects_manual_model_overrides() -> None:
+    tables = {
+        "GEOL": pd.DataFrame(
+            [
+                {
+                    "LOCA_ID": "BH01",
+                    "GEOL_TOP": "0",
+                    "GEOL_BASE": "1.2",
+                    "GEOL_GEOL": "GDU",
+                    "GEOL_DESC": "Grey medium grained psammite boulder.",
+                    "MATERIAL_CLASS": "Granular",
+                    "MODEL_UNIT": "GDU - Granular",
+                    "BEDROCK_TYPE": "Manual rock type",
+                }
+            ]
+        )
+    }
+
+    result = build_geological_model(tables)
+
+    assert result.loc[0, "MATERIAL_CLASS"] == "Granular"
+    assert result.loc[0, "MODEL_UNIT"] == "GDU - Granular"
+    assert result.loc[0, "BEDROCK_TYPE"] == "Manual rock type"
+
+
 def test_build_filtered_investigation_summary_lists_matching_investigations() -> None:
     filtered = pd.DataFrame(
         [

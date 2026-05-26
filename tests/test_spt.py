@@ -40,6 +40,34 @@ def test_build_spt_table_matches_geology_by_loca_and_depth() -> None:
     assert result["GEOLOGY_MATCHED"].tolist() == [True, True, False]
 
 
+def test_build_spt_table_uses_manual_geology_model_overrides() -> None:
+    tables = {
+        "ISPT": pd.DataFrame(
+            [{"LOCA_ID": "BH01", "ISPT_TOP": "1.20", "ISPT_MAIN": "12"}]
+        ),
+        "GEOL": pd.DataFrame(
+            [
+                {
+                    "LOCA_ID": "BH01",
+                    "GEOL_TOP": "0.00",
+                    "GEOL_BASE": "2.20",
+                    "GEOL_GEOL": "GDU",
+                    "GEOL_DESC": "Grey medium grained psammite boulder.",
+                    "MATERIAL_CLASS": "Granular",
+                    "MODEL_UNIT": "GDU - Granular",
+                    "BEDROCK_TYPE": "Manual rock type",
+                }
+            ]
+        ),
+    }
+
+    result = build_spt_table(tables)
+
+    assert result.loc[0, "MATERIAL_CLASS"] == "Granular"
+    assert result.loc[0, "MODEL_UNIT"] == "GDU - Granular"
+    assert result.loc[0, "BEDROCK_TYPE"] == "Manual rock type"
+
+
 def test_build_spt_table_uses_first_number_in_blow_count() -> None:
     tables = {
         "ISPT": pd.DataFrame(

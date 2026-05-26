@@ -37,6 +37,7 @@ def add_unmatched_geology(data: pd.DataFrame) -> pd.DataFrame:
     data["GEOL_TOP"] = pd.NA
     data["GEOL_BASE"] = pd.NA
     data["GEOL_DESC"] = pd.NA
+    data["__GEOL_SOURCE_ROW_INDEX"] = pd.NA
     data["GEOLOGY_MATCHED"] = False
     return data
 
@@ -50,8 +51,14 @@ def attach_geology_by_depth(data: pd.DataFrame, geol: pd.DataFrame, depth_column
         "GEOL_GEOL",
         "GEOL_TOP_NUM",
         "GEOL_BASE_NUM",
+        "MATERIAL_CLASS",
+        "MODEL_UNIT",
+        "BEDROCK_TYPE",
+        "__SOURCE_ROW_INDEX",
     ]
     geol = geol[[column for column in geol_columns if column in geol.columns]].copy()
+    if "__SOURCE_ROW_INDEX" in geol.columns:
+        geol = geol.rename(columns={"__SOURCE_ROW_INDEX": "__GEOL_SOURCE_ROW_INDEX"})
 
     matched = []
     for loca_id, data_group in data.groupby("LOCA_ID", dropna=False, sort=False):
@@ -82,6 +89,8 @@ def attach_geology_by_depth(data: pd.DataFrame, geol: pd.DataFrame, depth_column
         )
         merged["GEOLOGY_MATCHED"] = in_interval.fillna(False)
         merged.loc[~merged["GEOLOGY_MATCHED"], ["GEOL_TOP", "GEOL_BASE", "GEOL_DESC"]] = pd.NA
+        if "__GEOL_SOURCE_ROW_INDEX" in merged.columns:
+            merged.loc[~merged["GEOLOGY_MATCHED"], "__GEOL_SOURCE_ROW_INDEX"] = pd.NA
         merged.loc[~merged["GEOLOGY_MATCHED"], "GEOL_GEOL"] = "Unmatched"
         merged["GEOL_GEOL"] = merged["GEOL_GEOL"].fillna("Unspecified")
         matched.append(merged)

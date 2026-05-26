@@ -115,6 +115,38 @@ def parse_ags_xlsx(content: bytes | BinaryIO) -> dict[str, pd.DataFrame]:
     return parsed
 
 
+def serialise_ags_text(tables: dict[str, pd.DataFrame]) -> bytes:
+    output = StringIO()
+    writer = csv.writer(output, lineterminator="\n")
+    for group, table in tables.items():
+        public_columns = [column for column in table.columns if not str(column).startswith("__")]
+        writer.writerow(["GROUP", group])
+        writer.writerow(["HEADING", *public_columns])
+        for _, row in table.iterrows():
+            writer.writerow(["DATA", *[_serialise_cell(row.get(column)) for column in public_columns]])
+        writer.writerow([])
+    return output.getvalue().encode("utf-8")
+
+
+def serialise_ags_xlsx(tables: dict[str, pd.DataFrame]) -> bytes:
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        for group, table in tables.items():
+            public_columns = [column for column in table.columns if not str(column).startswith("__")]
+            rows = [["GROUP", group], ["HEADING", *public_columns]]
+            for _, row in table.iterrows():
+                rows.append(["DATA", *[_serialise_cell(row.get(column)) for column in public_columns]])
+            pd.DataFrame(rows).to_excel(writer, sheet_name=str(group)[:31], header=False, index=False)
+    return output.getvalue()
+
+
+def serialise_uploaded_file(file_name: str, tables: dict[str, pd.DataFrame]) -> bytes:
+    suffix = Path(file_name).suffix.lower()
+    if suffix == ".xlsx":
+        return serialise_ags_xlsx(tables)
+    return serialise_ags_text(tables)
+
+
 def _decode_text(content: bytes) -> str:
     for encoding in ("utf-8-sig", "cp1252", "latin-1"):
         try:
@@ -157,3 +189,9 @@ def _pad_or_trim(values: list[object], size: int) -> list[str | None]:
     if len(cleaned) < size:
         cleaned.extend([None] * (size - len(cleaned)))
     return cleaned[:size]
+
+
+def _serialise_cell(value: object) -> str:
+    if value is None or pd.isna(value):
+        return ""
+    return str(value)

@@ -25,12 +25,14 @@ from ags_app.bre import build_bre_sulphate_table, calculate_bre_summary, classif
 from ags_app.geolmodel import build_geological_model
 from ags_app.groundwater import build_groundwater_table
 from ags_app.mapviewer import build_geology_intervals, build_map_locations
-from ags_app.parser import parse_uploaded_file
+from ags_app.moisture import build_moisture_table
+from ags_app.parser import parse_uploaded_file, serialise_uploaded_file
 from ags_app.ivan import build_ivan_table
 from ags_app.pointload import build_pointload_table
 from ags_app.psd import build_psd_table
 from ags_app.rqd import build_rqd_table
 from ags_app.spt import build_spt_table
+from ags_app.unitweight import build_unit_weight_table
 from ags_app.ucs import build_ucs_table
 
 
@@ -69,6 +71,7 @@ def load_analysis_data(file_name: str, content: bytes):
         raise ValueError(
             "No AGS groups were detected. Check the file is a text AGS transfer file or an AGS-style Excel export."
         )
+    add_source_row_indices(parsed.tables)
     spt, spt_error = build_optional_table(parsed.tables, build_spt_table)
     ivan, ivan_error = build_optional_table(parsed.tables, build_ivan_table)
     ucs, ucs_error = build_optional_table(parsed.tables, build_ucs_table)
@@ -77,6 +80,8 @@ def load_analysis_data(file_name: str, content: bytes):
     pointload, pointload_error = build_optional_table(parsed.tables, build_pointload_table)
     psd, psd_error = build_optional_table(parsed.tables, build_psd_table)
     groundwater, groundwater_error = build_optional_table(parsed.tables, build_groundwater_table)
+    moisture, moisture_error = build_optional_table(parsed.tables, build_moisture_table)
+    unit_weight, unit_weight_error = build_optional_table(parsed.tables, build_unit_weight_table)
     return (
         parsed,
         spt,
@@ -87,6 +92,8 @@ def load_analysis_data(file_name: str, content: bytes):
         pointload,
         psd,
         groundwater,
+        moisture,
+        unit_weight,
         spt_error,
         ivan_error,
         ucs_error,
@@ -95,7 +102,17 @@ def load_analysis_data(file_name: str, content: bytes):
         pointload_error,
         psd_error,
         groundwater_error,
+        moisture_error,
+        unit_weight_error,
     )
+
+
+def add_source_row_indices(tables: dict[str, pd.DataFrame]) -> None:
+    for group, table in tables.items():
+        if "__SOURCE_GROUP" not in table.columns:
+            table["__SOURCE_GROUP"] = group
+        if "__SOURCE_ROW_INDEX" not in table.columns:
+            table["__SOURCE_ROW_INDEX"] = list(table.index)
 
 
 def main() -> None:
@@ -113,6 +130,8 @@ def main() -> None:
         "pointload",
         "psd",
         "groundwater",
+        "moisture",
+        "unit_weight",
         "map",
         "geological_model",
         "summary_stats",
@@ -138,6 +157,10 @@ def main() -> None:
         render_psd_screen()
     elif st.session_state["screen"] == "groundwater":
         render_groundwater_screen()
+    elif st.session_state["screen"] == "moisture":
+        render_moisture_screen()
+    elif st.session_state["screen"] == "unit_weight":
+        render_unit_weight_screen()
     elif st.session_state["screen"] == "map":
         render_map_screen()
     elif st.session_state["screen"] == "geological_model":
@@ -229,8 +252,8 @@ def inject_custom_css() -> None:
             gap: 1.35rem;
         }}
         .ags-logo {{
-            width: clamp(82px, 9vw, 116px);
-            height: clamp(82px, 9vw, 116px);
+            width: clamp(104px, 11vw, 144px);
+            height: clamp(104px, 11vw, 144px);
             border-radius: 999px;
             border: 1px solid #dedede;
             background: #ffffff;
@@ -558,6 +581,8 @@ def render_home_screen() -> None:
         pointload,
         psd,
         groundwater,
+        moisture,
+        unit_weight,
         spt_error,
         ivan_error,
         ucs_error,
@@ -566,6 +591,8 @@ def render_home_screen() -> None:
         pointload_error,
         psd_error,
         groundwater_error,
+        moisture_error,
+        unit_weight_error,
     ) = load_current_analysis_data()
     if (
         parsed is None
@@ -577,6 +604,8 @@ def render_home_screen() -> None:
         or pointload is None
         or psd is None
         or groundwater is None
+        or moisture is None
+        or unit_weight is None
     ):
         return
 
@@ -610,6 +639,10 @@ def render_home_screen() -> None:
         st.warning(f"Particle Size Distribution module unavailable: {psd_error}")
     if groundwater_error:
         st.warning(f"Groundwater Strike module unavailable: {groundwater_error}")
+    if moisture_error:
+        st.warning(f"Moisture Content module unavailable: {moisture_error}")
+    if unit_weight_error:
+        st.warning(f"Unit Weight module unavailable: {unit_weight_error}")
     bre_sulphate, bre_sulphate_error = build_optional_table(parsed.tables, build_bre_sulphate_table)
     if bre_sulphate_error:
         st.warning(f"BRE Sulphate Class module unavailable: {bre_sulphate_error}")
@@ -687,6 +720,22 @@ def render_home_screen() -> None:
             "accent": True,
         },
         {
+            "screen": "moisture",
+            "title": "Moisture Content",
+            "description": "Laboratory moisture content by depth and matched geology.",
+            "count": f"{len(moisture)} records",
+            "disabled": moisture.empty,
+            "accent": False,
+        },
+        {
+            "screen": "unit_weight",
+            "title": "Unit Weight",
+            "description": "Bulk and dry unit weight from laboratory density testing.",
+            "count": f"{len(unit_weight)} records",
+            "disabled": unit_weight.empty,
+            "accent": False,
+        },
+        {
             "screen": "map",
             "title": "Map Viewer",
             "description": "Investigation map with selected geology ranges under each borehole.",
@@ -709,7 +758,7 @@ def render_home_screen() -> None:
             "count": "statistical table",
             "disabled": all(
                 table.empty
-                for table in [spt, ivan, ucs, rqd, atterberg, pointload, psd, groundwater]
+                for table in [spt, ivan, ucs, rqd, atterberg, pointload, psd, groundwater, moisture, unit_weight]
             ),
             "accent": False,
         },
@@ -812,6 +861,8 @@ def module_summary(screen: str) -> str:
         "pointload": "Plot point load strength index by sample depth and use geology filters to develop rock strength summaries.",
         "psd": "Review particle size distribution curves with soil fraction bands, selected sample curves, and optional statistical design curves.",
         "groundwater": "Review groundwater strike depths by investigation without geology filters, focused on strike and post-strike observations.",
+        "moisture": "Plot laboratory moisture content by sample depth with the same investigation, geology, material, and model unit filters.",
+        "unit_weight": "Review laboratory bulk and dry unit weight calculated from LDEN density results and compare by investigation or geology.",
         "map": "Map selected investigations over aerial or static basemaps and label boreholes with merged geology depth ranges.",
         "geological_model": "Build a searchable geological model from GEOL strata, material classes, model units, and bedrock lithology descriptions.",
         "summary_stats": "Create cautious estimates and means for selected modules, including custom combined geology groups for reporting tables.",
@@ -837,7 +888,7 @@ def render_spt_screen() -> None:
         return
 
     analysis = load_current_analysis_data()
-    parsed, spt, spt_error = analysis[0], analysis[1], analysis[9]
+    parsed, spt, spt_error = analysis[0], analysis[1], analysis[11]
     if parsed is None or spt is None:
         return
     if spt_error or spt.empty:
@@ -864,7 +915,7 @@ def render_ivan_screen() -> None:
         return
 
     analysis = load_current_analysis_data()
-    parsed, ivan, ivan_error = analysis[0], analysis[2], analysis[10]
+    parsed, ivan, ivan_error = analysis[0], analysis[2], analysis[12]
     if parsed is None or ivan is None:
         return
     if ivan_error or ivan.empty:
@@ -891,7 +942,7 @@ def render_ucs_screen() -> None:
         return
 
     analysis = load_current_analysis_data()
-    parsed, ucs, ucs_error = analysis[0], analysis[3], analysis[11]
+    parsed, ucs, ucs_error = analysis[0], analysis[3], analysis[13]
     if parsed is None or ucs is None:
         return
     if ucs_error or ucs.empty:
@@ -918,7 +969,7 @@ def render_rqd_screen() -> None:
         return
 
     analysis = load_current_analysis_data()
-    parsed, rqd, rqd_error = analysis[0], analysis[4], analysis[12]
+    parsed, rqd, rqd_error = analysis[0], analysis[4], analysis[14]
     if parsed is None or rqd is None:
         return
     if rqd_error or rqd.empty:
@@ -945,7 +996,7 @@ def render_atterberg_screen() -> None:
         return
 
     analysis = load_current_analysis_data()
-    parsed, atterberg, atterberg_error = analysis[0], analysis[5], analysis[13]
+    parsed, atterberg, atterberg_error = analysis[0], analysis[5], analysis[15]
     if parsed is None or atterberg is None:
         return
     if atterberg_error or atterberg.empty:
@@ -972,7 +1023,7 @@ def render_pointload_screen() -> None:
         return
 
     analysis = load_current_analysis_data()
-    parsed, pointload, pointload_error = analysis[0], analysis[6], analysis[14]
+    parsed, pointload, pointload_error = analysis[0], analysis[6], analysis[16]
     if parsed is None or pointload is None:
         return
     if pointload_error or pointload.empty:
@@ -999,7 +1050,7 @@ def render_psd_screen() -> None:
         return
 
     analysis = load_current_analysis_data()
-    parsed, psd, psd_error = analysis[0], analysis[7], analysis[15]
+    parsed, psd, psd_error = analysis[0], analysis[7], analysis[17]
     if parsed is None or psd is None:
         return
     if psd_error or psd.empty:
@@ -1026,7 +1077,7 @@ def render_groundwater_screen() -> None:
         return
 
     analysis = load_current_analysis_data()
-    parsed, groundwater, groundwater_error = analysis[0], analysis[8], analysis[16]
+    parsed, groundwater, groundwater_error = analysis[0], analysis[8], analysis[18]
     if parsed is None or groundwater is None:
         return
     if groundwater_error or groundwater.empty:
@@ -1034,6 +1085,60 @@ def render_groundwater_screen() -> None:
         return
 
     render_groundwater_module(parsed, groundwater)
+
+
+def render_moisture_screen() -> None:
+    header_col, action_col = st.columns([1, 0.18])
+    with header_col:
+        st.title("Moisture Content")
+    with action_col:
+        if st.button("Back"):
+            st.session_state["screen"] = "home"
+            st.rerun()
+
+    if "ags_content" not in st.session_state:
+        st.warning("Load AGS data before opening the Moisture Content module.")
+        if st.button("Go to upload"):
+            st.session_state["screen"] = "home"
+            st.rerun()
+        return
+
+    analysis = load_current_analysis_data()
+    parsed, moisture, moisture_error = analysis[0], analysis[9], analysis[19]
+    if parsed is None or moisture is None:
+        return
+    if moisture_error or moisture.empty:
+        st.warning(moisture_error or "No valid moisture content rows found after reading LOCA_ID, SAMP_TOP, and LNMC_MC.")
+        return
+
+    render_moisture_module(parsed, moisture)
+
+
+def render_unit_weight_screen() -> None:
+    header_col, action_col = st.columns([1, 0.18])
+    with header_col:
+        st.title("Unit Weight")
+    with action_col:
+        if st.button("Back"):
+            st.session_state["screen"] = "home"
+            st.rerun()
+
+    if "ags_content" not in st.session_state:
+        st.warning("Load AGS data before opening the Unit Weight module.")
+        if st.button("Go to upload"):
+            st.session_state["screen"] = "home"
+            st.rerun()
+        return
+
+    analysis = load_current_analysis_data()
+    parsed, unit_weight, unit_weight_error = analysis[0], analysis[10], analysis[20]
+    if parsed is None or unit_weight is None:
+        return
+    if unit_weight_error or unit_weight.empty:
+        st.warning(unit_weight_error or "No valid unit weight rows found after reading LOCA_ID, SAMP_TOP, and LDEN density fields.")
+        return
+
+    render_unit_weight_module(parsed, unit_weight)
 
 
 def render_map_screen() -> None:
@@ -1128,6 +1233,8 @@ def render_summary_stats_screen() -> None:
             "Point Load Strength": analysis[6],
             "Particle Size Distribution": analysis[7],
             "Groundwater Strike": analysis[8],
+            "Moisture Content": analysis[9],
+            "Unit Weight": analysis[10],
         }
     )
 
@@ -1162,25 +1269,7 @@ def render_bre_sulphate_screen() -> None:
     render_bre_sulphate_module(bre_sulphate)
 
 
-def load_current_analysis_data() -> tuple[
-    Any | None,
-    pd.DataFrame | None,
-    pd.DataFrame | None,
-    pd.DataFrame | None,
-    pd.DataFrame | None,
-    pd.DataFrame | None,
-    pd.DataFrame | None,
-    pd.DataFrame | None,
-    pd.DataFrame | None,
-    str | None,
-    str | None,
-    str | None,
-    str | None,
-    str | None,
-    str | None,
-    str | None,
-    str | None,
-]:
+def load_current_analysis_data() -> tuple[Any, ...]:
     try:
         source_name = st.session_state["ags_source_name"]
         content = st.session_state["ags_content"]
@@ -1196,6 +1285,8 @@ def load_current_analysis_data() -> tuple[
                 pointload,
                 psd,
                 groundwater,
+                moisture,
+                unit_weight,
                 spt_error,
                 ivan_error,
                 ucs_error,
@@ -1204,6 +1295,8 @@ def load_current_analysis_data() -> tuple[
                 pointload_error,
                 psd_error,
                 groundwater_error,
+                moisture_error,
+                unit_weight_error,
             ) = load_analysis_data(source_name, content)
         return (
             parsed,
@@ -1215,6 +1308,8 @@ def load_current_analysis_data() -> tuple[
             pointload,
             psd,
             groundwater,
+            moisture,
+            unit_weight,
             spt_error,
             ivan_error,
             ucs_error,
@@ -1223,10 +1318,12 @@ def load_current_analysis_data() -> tuple[
             pointload_error,
             psd_error,
             groundwater_error,
+            moisture_error,
+            unit_weight_error,
         )
     except Exception as exc:
         st.error(str(exc))
-        return None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None
+        return (None,) * 21
 
 
 def build_optional_table(tables: dict[str, pd.DataFrame], builder) -> tuple[pd.DataFrame, str | None]:
@@ -1511,6 +1608,13 @@ def summary_parameter_definitions(module_name: str) -> list[dict[str, str]]:
             {"label": "Strike depth", "column": "WSTG_DPTH_NUM", "unit": "m bgl", "side": "upper"},
             {"label": "Post-strike reading", "column": "WSTD_POST_NUM", "unit": "m bgl", "side": "upper"},
         ],
+        "Moisture Content": [
+            {"label": "Moisture content", "column": "LNMC_MC_NUM", "unit": "%", "side": "lower"},
+        ],
+        "Unit Weight": [
+            {"label": "Bulk unit weight", "column": "BULK_UNIT_WEIGHT_NUM", "unit": "kN/m3", "side": "lower"},
+            {"label": "Dry unit weight", "column": "DRY_UNIT_WEIGHT_NUM", "unit": "kN/m3", "side": "lower"},
+        ],
         "Particle Size Distribution": [
             {"label": "D10", "column": "PSD_D10_NUM", "unit": "mm", "side": "lower"},
             {"label": "D30", "column": "PSD_D30_NUM", "unit": "mm", "side": "lower"},
@@ -1539,7 +1643,9 @@ def build_summary_stat_rows(module_name: str, data: pd.DataFrame) -> list[dict[s
                 "Investigations": int(summary_data.loc[summary_data[column].notna(), "LOCA_ID"].nunique())
                 if "LOCA_ID" in summary_data.columns
                 else pd.NA,
+                "Minimum": stats["minimum"],
                 "Mean": stats["mean"],
+                "Maximum": stats["maximum"],
                 "Std Dev": stats["std_dev"],
                 "Lower 95% Estimate": stats["lower_95"],
                 "Upper 95% Estimate": stats["upper_95"],
@@ -1677,6 +1783,8 @@ def calculate_scalar_summary(values: pd.Series, cautious_side: str = "lower") ->
 
     count = int(len(clean))
     mean_value = float(clean.mean())
+    minimum_value = float(clean.min())
+    maximum_value = float(clean.max())
     if count == 1:
         std_dev = pd.NA
         lower = mean_value
@@ -1692,7 +1800,9 @@ def calculate_scalar_summary(values: pd.Series, cautious_side: str = "lower") ->
     cautious = upper if cautious_side == "upper" else lower
     return {
         "count": count,
+        "minimum": round(minimum_value, 3),
         "mean": round(mean_value, 3),
+        "maximum": round(maximum_value, 3),
         "std_dev": pd.NA if pd.isna(std_dev) else round(float(std_dev), 3),
         "lower_95": round(lower, 3),
         "upper_95": round(upper, 3),
@@ -1757,6 +1867,8 @@ def summary_source_columns(module_name: str, data: pd.DataFrame) -> list[str]:
         "Point Load Strength": ["LOCA_ID", "SAMP_TOP", "SPEC_DPTH", "RPLT_PLSI", "RPLT_PLSI_NUM"],
         "Particle Size Distribution": ["LOCA_ID", "PSD_SAMPLE_ID", "SAMP_TOP", "GRAT_SIZE", "GRAT_PERP"],
         "Groundwater Strike": ["LOCA_ID", "WSTG_DPTH", "WSTD_POST", "WSTG_DPTH_NUM", "WSTD_POST_NUM"],
+        "Moisture Content": ["LOCA_ID", "SAMP_TOP", "LNMC_MC", "LNMC_MC_NUM"],
+        "Unit Weight": ["LOCA_ID", "SAMP_TOP", "LDEN_BDEN", "LDEN_DDEN", "BULK_UNIT_WEIGHT_NUM", "DRY_UNIT_WEIGHT_NUM"],
     }
     columns = base_columns.get(module_name, ["LOCA_ID"])
     columns.extend(["GEOL_GEOL", "MATERIAL_CLASS", "MODEL_UNIT", "BEDROCK_TYPE", "GEOL_DESC"])
@@ -1792,7 +1904,7 @@ def render_spt_module(parsed, spt: pd.DataFrame) -> None:
     filtered_by_unit = apply_geology_filter(filtered, selected_units, geology_mode, selected_materials, selected_model_units, selected_bedrock)
 
     tab_all, tab_units, tab_data = st.tabs(
-        ["All Investigations", "Geological Units", "Matched Data"]
+        ["All Investigations", "Model Units", "Matched Data"]
     )
 
     with tab_all:
@@ -1807,8 +1919,8 @@ def render_spt_module(parsed, spt: pd.DataFrame) -> None:
     with tab_units:
         render_spt_plot(
             filtered_by_unit,
-            title=f"{spt_title_value} vs Depth by Geological Unit",
-            color_by="GEOL_GEOL",
+            title=f"{spt_title_value} vs Depth by Model Unit",
+            color_by="MODEL_UNIT",
             x_column=spt_value_column,
             x_label=spt_value_label,
         )
@@ -1829,11 +1941,7 @@ def render_spt_module(parsed, spt: pd.DataFrame) -> None:
             "GEOL_DESC",
             "GEOLOGY_MATCHED",
         ]
-        st.dataframe(
-            filtered_by_unit[matched_data_columns(filtered_by_unit, columns)],
-            use_container_width=True,
-            hide_index=True,
-        )
+        render_matched_data_editor(parsed, filtered_by_unit, columns, "ISPT", "spt")
 
 
 def render_ivan_module(parsed, ivan: pd.DataFrame) -> None:
@@ -1843,7 +1951,7 @@ def render_ivan_module(parsed, ivan: pd.DataFrame) -> None:
     filtered_by_unit = apply_geology_filter(filtered, selected_units, geology_mode, selected_materials, selected_model_units, selected_bedrock)
 
     tab_all, tab_units, tab_data = st.tabs(
-        ["All Investigations", "Geological Units", "Matched Data"]
+        ["All Investigations", "Model Units", "Matched Data"]
     )
 
     with tab_all:
@@ -1856,8 +1964,8 @@ def render_ivan_module(parsed, ivan: pd.DataFrame) -> None:
     with tab_units:
         render_ivan_plot(
             filtered_by_unit,
-            title="Hand Shear Vane vs Depth by Geological Unit",
-            color_by="GEOL_GEOL",
+            title="Hand Shear Vane vs Depth by Model Unit",
+            color_by="MODEL_UNIT",
         )
 
     with tab_data:
@@ -1873,11 +1981,7 @@ def render_ivan_module(parsed, ivan: pd.DataFrame) -> None:
             "GEOL_DESC",
             "GEOLOGY_MATCHED",
         ]
-        st.dataframe(
-            filtered_by_unit[matched_data_columns(filtered_by_unit, columns)],
-            use_container_width=True,
-            hide_index=True,
-        )
+        render_matched_data_editor(parsed, filtered_by_unit, columns, "IVAN", "ivan")
 
 
 def render_ucs_module(parsed, ucs: pd.DataFrame) -> None:
@@ -1887,7 +1991,7 @@ def render_ucs_module(parsed, ucs: pd.DataFrame) -> None:
     filtered_by_unit = apply_geology_filter(filtered, selected_units, geology_mode, selected_materials, selected_model_units, selected_bedrock)
 
     tab_all, tab_units, tab_data = st.tabs(
-        ["All Investigations", "Geological Units", "Matched Data"]
+        ["All Investigations", "Model Units", "Matched Data"]
     )
 
     with tab_all:
@@ -1900,8 +2004,8 @@ def render_ucs_module(parsed, ucs: pd.DataFrame) -> None:
     with tab_units:
         render_ucs_plot(
             filtered_by_unit,
-            title="UCS vs Depth by Geological Unit",
-            color_by="GEOL_GEOL",
+            title="UCS vs Depth by Model Unit",
+            color_by="MODEL_UNIT",
         )
 
     with tab_data:
@@ -1917,11 +2021,7 @@ def render_ucs_module(parsed, ucs: pd.DataFrame) -> None:
             "GEOL_DESC",
             "GEOLOGY_MATCHED",
         ]
-        st.dataframe(
-            filtered_by_unit[matched_data_columns(filtered_by_unit, columns)],
-            use_container_width=True,
-            hide_index=True,
-        )
+        render_matched_data_editor(parsed, filtered_by_unit, columns, "RUCS", "ucs")
 
 
 def render_rqd_module(parsed, rqd: pd.DataFrame) -> None:
@@ -1931,7 +2031,7 @@ def render_rqd_module(parsed, rqd: pd.DataFrame) -> None:
     filtered_by_unit = apply_geology_filter(filtered, selected_units, geology_mode, selected_materials, selected_model_units, selected_bedrock)
 
     tab_all, tab_units, tab_data = st.tabs(
-        ["All Investigations", "Geological Units", "Matched Data"]
+        ["All Investigations", "Model Units", "Matched Data"]
     )
 
     with tab_all:
@@ -1944,8 +2044,8 @@ def render_rqd_module(parsed, rqd: pd.DataFrame) -> None:
     with tab_units:
         render_rqd_plot(
             filtered_by_unit,
-            title="RQD vs Depth by Geological Unit",
-            color_by="GEOL_GEOL",
+            title="RQD vs Depth by Model Unit",
+            color_by="MODEL_UNIT",
         )
 
     with tab_data:
@@ -1962,11 +2062,7 @@ def render_rqd_module(parsed, rqd: pd.DataFrame) -> None:
             "GEOL_DESC",
             "GEOLOGY_MATCHED",
         ]
-        st.dataframe(
-            filtered_by_unit[matched_data_columns(filtered_by_unit, columns)],
-            use_container_width=True,
-            hide_index=True,
-        )
+        render_matched_data_editor(parsed, filtered_by_unit, columns, "CORE", "rqd")
 
 
 def render_atterberg_module(parsed, atterberg: pd.DataFrame) -> None:
@@ -2019,11 +2115,7 @@ def render_atterberg_module(parsed, atterberg: pd.DataFrame) -> None:
             "GEOL_DESC",
             "GEOLOGY_MATCHED",
         ]
-        st.dataframe(
-            filtered_by_unit[matched_data_columns(filtered_by_unit, columns)],
-            use_container_width=True,
-            hide_index=True,
-        )
+        render_matched_data_editor(parsed, filtered_by_unit, columns, "LLPL", "atterberg")
 
 
 def render_pointload_module(parsed, pointload: pd.DataFrame) -> None:
@@ -2033,7 +2125,7 @@ def render_pointload_module(parsed, pointload: pd.DataFrame) -> None:
     filtered_by_unit = apply_geology_filter(filtered, selected_units, geology_mode, selected_materials, selected_model_units, selected_bedrock)
 
     tab_all, tab_units, tab_data = st.tabs(
-        ["All Investigations", "Geological Units", "Matched Data"]
+        ["All Investigations", "Model Units", "Matched Data"]
     )
 
     with tab_all:
@@ -2046,8 +2138,8 @@ def render_pointload_module(parsed, pointload: pd.DataFrame) -> None:
     with tab_units:
         render_pointload_plot(
             filtered_by_unit,
-            title="Point Load Strength Index vs Depth by Geological Unit",
-            color_by="GEOL_GEOL",
+            title="Point Load Strength Index vs Depth by Model Unit",
+            color_by="MODEL_UNIT",
         )
 
     with tab_data:
@@ -2065,11 +2157,7 @@ def render_pointload_module(parsed, pointload: pd.DataFrame) -> None:
             "GEOL_DESC",
             "GEOLOGY_MATCHED",
         ]
-        st.dataframe(
-            filtered_by_unit[matched_data_columns(filtered_by_unit, columns)],
-            use_container_width=True,
-            hide_index=True,
-        )
+        render_matched_data_editor(parsed, filtered_by_unit, columns, "RPLT", "pointload")
 
 
 def render_groundwater_module(parsed, groundwater: pd.DataFrame) -> None:
@@ -2102,11 +2190,112 @@ def render_groundwater_module(parsed, groundwater: pd.DataFrame) -> None:
             "GEOL_DESC",
             "GEOLOGY_MATCHED",
         ]
-        st.dataframe(
-            filtered[matched_data_columns(filtered, columns)],
-            use_container_width=True,
-            hide_index=True,
+        render_matched_data_editor(parsed, filtered, columns, "WSTG", "groundwater")
+
+
+def render_moisture_module(parsed, moisture: pd.DataFrame) -> None:
+    selected_loca, geology_mode, selected_units, selected_materials, selected_model_units, selected_bedrock = render_filters(moisture, "moisture content records")
+
+    filtered = moisture[moisture["LOCA_ID"].isin(selected_loca)].copy()
+    filtered_by_unit = apply_geology_filter(filtered, selected_units, geology_mode, selected_materials, selected_model_units, selected_bedrock)
+
+    tab_all, tab_units, tab_data = st.tabs(
+        ["All Investigations", "Model Units", "Matched Data"]
+    )
+
+    with tab_all:
+        render_depth_scatter_plot(
+            data=filtered_by_unit,
+            title="Moisture Content vs Depth by Investigation",
+            color_by="LOCA_ID",
+            x_column="LNMC_MC_NUM",
+            y_column="SAMP_TOP_NUM",
+            x_label="Moisture content (%)",
+            y_label="Depth (m bgl)",
         )
+
+    with tab_units:
+        render_depth_scatter_plot(
+            data=filtered_by_unit,
+            title="Moisture Content vs Depth by Model Unit",
+            color_by="MODEL_UNIT",
+            x_column="LNMC_MC_NUM",
+            y_column="SAMP_TOP_NUM",
+            x_label="Moisture content (%)",
+            y_label="Depth (m bgl)",
+        )
+
+    with tab_data:
+        columns = [
+            "LOCA_ID",
+            "SAMP_TOP",
+            "SAMP_REF",
+            "SAMP_TYPE",
+            "SAMP_ID",
+            "SPEC_REF",
+            "LNMC_MC",
+            "LNMC_MC_NUM",
+            "SAMP_TOP_NUM",
+            "GEOL_GEOL",
+            "GEOL_TOP",
+            "GEOL_BASE",
+            "GEOL_DESC",
+            "GEOLOGY_MATCHED",
+        ]
+        render_matched_data_editor(parsed, filtered_by_unit, columns, "LNMC", "moisture")
+
+
+def render_unit_weight_module(parsed, unit_weight: pd.DataFrame) -> None:
+    selected_loca, geology_mode, selected_units, selected_materials, selected_model_units, selected_bedrock = render_filters(unit_weight, "unit weight records")
+
+    filtered = unit_weight[unit_weight["LOCA_ID"].isin(selected_loca)].copy()
+    filtered_by_unit = apply_geology_filter(filtered, selected_units, geology_mode, selected_materials, selected_model_units, selected_bedrock)
+
+    tab_bulk, tab_dry, tab_data = st.tabs(
+        ["Bulk Unit Weight", "Dry Unit Weight", "Matched Data"]
+    )
+
+    with tab_bulk:
+        render_unit_weight_pair(
+            filtered_by_unit,
+            value_column="BULK_UNIT_WEIGHT_NUM",
+            value_label="Bulk unit weight (kN/m3)",
+            title_prefix="Bulk Unit Weight",
+        )
+
+    with tab_dry:
+        render_unit_weight_pair(
+            filtered_by_unit,
+            value_column="DRY_UNIT_WEIGHT_NUM",
+            value_label="Dry unit weight (kN/m3)",
+            title_prefix="Dry Unit Weight",
+        )
+
+    with tab_data:
+        columns = [
+            "LOCA_ID",
+            "SAMP_TOP",
+            "SAMP_REF",
+            "SAMP_TYPE",
+            "SAMP_ID",
+            "SPEC_REF",
+            "SPEC_DPTH",
+            "LDEN_MC",
+            "LDEN_BDEN",
+            "LDEN_DDEN",
+            "LDEN_MC_NUM",
+            "LDEN_BDEN_NUM",
+            "LDEN_DDEN_NUM",
+            "BULK_UNIT_WEIGHT_NUM",
+            "DRY_UNIT_WEIGHT_NUM",
+            "SAMP_TOP_NUM",
+            "GEOL_GEOL",
+            "GEOL_TOP",
+            "GEOL_BASE",
+            "GEOL_DESC",
+            "GEOLOGY_MATCHED",
+        ]
+        render_matched_data_editor(parsed, filtered_by_unit, columns, "LDEN", "unit_weight")
 
 
 def render_map_module(
@@ -2347,11 +2536,7 @@ def render_psd_module(parsed, psd: pd.DataFrame) -> None:
             "GEOL_DESC",
             "GEOLOGY_MATCHED",
         ]
-        st.dataframe(
-            filtered_by_unit[matched_data_columns(filtered_by_unit, columns)],
-            use_container_width=True,
-            hide_index=True,
-        )
+        render_matched_data_editor(parsed, filtered_by_unit, columns, "GRAT", "psd")
 
 
 def render_filters(data: pd.DataFrame, record_label: str) -> tuple[list[str], str, list[str], list[str], list[str], list[str]]:
@@ -2433,6 +2618,216 @@ def matched_data_columns(data: pd.DataFrame, columns: list[str]) -> list[str]:
             output.extend([model_column for model_column in model_columns if model_column in data.columns])
         output.append(column)
     return [column for column in dict.fromkeys(output) if column in data.columns]
+
+
+DERIVED_MATCHED_COLUMNS = {
+    "GEOLOGY_MATCHED",
+    "GROUNDWATER_PLOT_NUM",
+    "POINTLOAD_DEPTH_NUM",
+    "PSD_DEPTH_NUM",
+    "PSD_SAMPLE_ID",
+}
+GEOLOGY_OVERRIDE_COLUMNS = {"MATERIAL_CLASS", "MODEL_UNIT", "BEDROCK_TYPE"}
+
+
+def render_matched_data_editor(
+    parsed,
+    data: pd.DataFrame,
+    columns: list[str],
+    source_group: str,
+    key: str,
+) -> None:
+    visible_columns = matched_data_columns(data, columns)
+    hidden_source_columns = [
+        column
+        for column in ("__SOURCE_ROW_INDEX", "__GEOL_SOURCE_ROW_INDEX")
+        if column in data.columns
+    ]
+    editor_data = data[visible_columns + hidden_source_columns].copy()
+    editor_height = min(720, max(360, 38 * (len(editor_data) + 1)))
+    edit_state_key = f"{key}_matched_data_editing"
+    editing = bool(st.session_state.get(edit_state_key, False))
+
+    action_col, note_col = st.columns([0.22, 0.78])
+    with action_col:
+        if editing:
+            if st.button("🔓 Save and lock", key=f"{key}_save_lock", type="primary"):
+                edited = dataframe_from_editor_state(
+                    editor_data,
+                    st.session_state.get(f"{key}_matched_editor", editor_data),
+                )
+                result = save_matched_data_edits(parsed, edited, source_group)
+                if result:
+                    st.session_state[edit_state_key] = False
+                    st.success(result)
+                    st.rerun()
+        else:
+            if st.button("🔒 Unlock data", key=f"{key}_unlock"):
+                st.session_state[edit_state_key] = True
+                st.rerun()
+    with note_col:
+        status = "Unlocked: edit source AGS fields, then save and lock." if editing else "Locked: unlock to edit source AGS fields."
+        st.caption(status)
+
+    column_config = {
+        "__SOURCE_ROW_INDEX": None,
+        "__GEOL_SOURCE_ROW_INDEX": None,
+    }
+    disabled_columns = [
+        column
+        for column in editor_data.columns
+        if column.startswith("__") or is_derived_matched_column(column, source_group)
+    ]
+
+    if editing:
+        st.data_editor(
+            editor_data,
+            key=f"{key}_matched_editor",
+            use_container_width=True,
+            height=editor_height,
+            hide_index=True,
+            num_rows="fixed",
+            disabled=disabled_columns,
+            column_config=column_config,
+        )
+    else:
+        st.dataframe(
+            editor_data[visible_columns],
+            use_container_width=True,
+            height=editor_height,
+            hide_index=True,
+        )
+
+
+def dataframe_from_editor_state(base: pd.DataFrame, editor_state: object) -> pd.DataFrame:
+    if isinstance(editor_state, pd.DataFrame):
+        return editor_state.copy()
+    if not isinstance(editor_state, dict):
+        return base.copy()
+
+    edited = base.copy()
+    edited_rows = editor_state.get("edited_rows", {})
+    for row_key, changes in edited_rows.items():
+        try:
+            row_index = int(row_key)
+        except (TypeError, ValueError):
+            continue
+        if row_index < 0 or row_index >= len(edited) or not isinstance(changes, dict):
+            continue
+        for column, value in changes.items():
+            if column in edited.columns:
+                edited.iat[row_index, edited.columns.get_loc(column)] = value
+
+    deleted_rows = sorted(
+        (int(row) for row in editor_state.get("deleted_rows", []) if str(row).isdigit()),
+        reverse=True,
+    )
+    if deleted_rows:
+        edited = edited.drop(edited.index[deleted_rows], errors="ignore").reset_index(drop=True)
+
+    added_rows = editor_state.get("added_rows", [])
+    if added_rows:
+        rows = [row for row in added_rows if isinstance(row, dict)]
+        if rows:
+            edited = pd.concat([edited, pd.DataFrame(rows)], ignore_index=True)
+
+    return edited
+
+
+def is_derived_matched_column(column: str, source_group: str) -> bool:
+    if column in DERIVED_MATCHED_COLUMNS:
+        return True
+    if column.endswith("_NUM"):
+        return True
+    if column.startswith("GEOL_"):
+        return False
+    return False
+
+
+def save_matched_data_edits(parsed, edited: pd.DataFrame, source_group: str) -> str | None:
+    source_group = source_group.upper()
+    tables = {group: table.copy() for group, table in parsed.tables.items()}
+    source_updates = apply_table_edits(tables, source_group, edited, "__SOURCE_ROW_INDEX")
+    geology_updates = apply_table_edits(tables, "GEOL", edited, "__GEOL_SOURCE_ROW_INDEX", geol_only=True)
+
+    if source_updates == 0 and geology_updates == 0:
+        st.warning("No editable source rows were found in the current table.")
+        return None
+
+    source_name = str(st.session_state.get("ags_source_name", parsed.source_name))
+    new_content = serialise_uploaded_file(source_name, tables)
+    st.session_state["ags_content"] = new_content
+    persist_ags_session(source_name, new_content)
+    write_active_source_file(source_name, new_content)
+    load_analysis_data.clear()
+    return f"Saved {source_updates + geology_updates} source row updates."
+
+
+def apply_table_edits(
+    tables: dict[str, pd.DataFrame],
+    group: str,
+    edited: pd.DataFrame,
+    source_index_column: str,
+    geol_only: bool = False,
+) -> int:
+    if group not in tables or source_index_column not in edited.columns:
+        return 0
+
+    table = tables[group].copy()
+    if geol_only:
+        for column in GEOLOGY_OVERRIDE_COLUMNS:
+            if column in edited.columns and column not in table.columns:
+                table[column] = pd.NA
+    editable_columns = [
+        column
+        for column in edited.columns
+        if column in table.columns
+        and not column.startswith("__")
+        and not column.endswith("_NUM")
+        and column not in DERIVED_MATCHED_COLUMNS
+    ]
+    if geol_only:
+        editable_columns = [
+            column
+            for column in editable_columns
+            if column.startswith("GEOL_") or column in GEOLOGY_OVERRIDE_COLUMNS
+        ]
+    else:
+        editable_columns = [column for column in editable_columns if not column.startswith("GEOL_")]
+    if not editable_columns:
+        return 0
+
+    updates = 0
+    for _, row in edited.iterrows():
+        source_index = row.get(source_index_column)
+        if pd.isna(source_index):
+            continue
+        try:
+            source_index_int = int(source_index)
+        except (TypeError, ValueError):
+            continue
+        if source_index_int not in table.index:
+            continue
+        for column in editable_columns:
+            table.at[source_index_int, column] = normalise_editor_value(row.get(column))
+        updates += 1
+
+    tables[group] = table
+    return updates
+
+
+def normalise_editor_value(value: object) -> str | None:
+    if value is None or pd.isna(value):
+        return None
+    return str(value)
+
+
+def write_active_source_file(source_name: str, content: bytes) -> None:
+    path = Path(source_name)
+    if not path.is_file():
+        st.info("Saved in the app session. To overwrite a source file directly, load it using a local file path.")
+        return
+    path.write_bytes(content)
 
 
 def render_local_file_loader(show_loader: bool) -> Path | None:
@@ -2534,7 +2929,7 @@ def render_spt_plot(
         x_column=x_column,
         y_column="ISPT_TOP_NUM",
         x_label=x_label,
-        y_label="Depth below ground level (m)",
+        y_label="Depth (m bgl)",
     )
 
 
@@ -2550,7 +2945,7 @@ def render_ivan_plot(
         x_column="IVAN_IVAN_NUM",
         y_column="IVAN_DPTH_NUM",
         x_label="Undrained shear strength, Cu",
-        y_label="Depth below ground level (m)",
+        y_label="Depth (m bgl)",
     )
 
 
@@ -2566,7 +2961,7 @@ def render_ucs_plot(
         x_column="RUCS_UCS_NUM",
         y_column="SAMP_TOP_NUM",
         x_label="Unconfined compressive strength (MPa)",
-        y_label="Sample top depth below ground level (m)",
+        y_label="Depth (m bgl)",
     )
 
 
@@ -2582,7 +2977,7 @@ def render_rqd_plot(
         x_column="CORE_RQD_NUM",
         y_column="CORE_TOP_NUM",
         x_label="Rock quality designation, RQD (%)",
-        y_label="Core run top depth below ground level (m)",
+        y_label="Depth (m bgl)",
     )
 
 
@@ -2598,7 +2993,7 @@ def render_pointload_plot(
         x_column="RPLT_PLSI_NUM",
         y_column="POINTLOAD_DEPTH_NUM",
         x_label="Point load strength index, Is50",
-        y_label="Depth below ground level (m)",
+        y_label="Depth (m bgl)",
     )
 
 
@@ -2619,7 +3014,7 @@ def render_groundwater_plot(
         x_column="GROUNDWATER_PLOT_NUM",
         y_column="WSTG_DPTH_NUM",
         x_label="Investigation",
-        y_label="Groundwater strike depth below ground level (m)",
+        y_label="Depth (m bgl)",
         x_tick_labels=tick_labels,
     )
 
@@ -2644,11 +3039,11 @@ def render_atterberg_pair(
         value_label=value_label,
     )
 
-    st.subheader("By Geological Unit")
+    st.subheader("By Model Unit")
     render_atterberg_plot(
         plot_data,
-        title=f"{title_prefix} vs Depth by Geological Unit",
-        color_by="GEOL_GEOL",
+        title=f"{title_prefix} vs Depth by Model Unit",
+        color_by="MODEL_UNIT",
         value_column=value_column,
         value_label=value_label,
     )
@@ -2668,7 +3063,41 @@ def render_atterberg_plot(
         x_column=value_column,
         y_column="SAMP_TOP_NUM",
         x_label=value_label,
-        y_label="Sample top depth below ground level (m)",
+        y_label="Depth (m bgl)",
+    )
+
+
+def render_unit_weight_pair(
+    data: pd.DataFrame,
+    value_column: str,
+    value_label: str,
+    title_prefix: str,
+) -> None:
+    plot_data = data.dropna(subset=[value_column]).copy()
+    if plot_data.empty:
+        st.warning(f"No {title_prefix.lower()} records match the current filters.")
+        return
+
+    st.subheader("By Investigation")
+    render_depth_scatter_plot(
+        data=plot_data,
+        title=f"{title_prefix} vs Depth by Investigation",
+        color_by="LOCA_ID",
+        x_column=value_column,
+        y_column="SAMP_TOP_NUM",
+        x_label=value_label,
+        y_label="Depth (m bgl)",
+    )
+
+    st.subheader("By Model Unit")
+    render_depth_scatter_plot(
+        data=plot_data,
+        title=f"{title_prefix} vs Depth by Model Unit",
+        color_by="MODEL_UNIT",
+        x_column=value_column,
+        y_column="SAMP_TOP_NUM",
+        x_label=value_label,
+        y_label="Depth (m bgl)",
     )
 
 
@@ -3215,7 +3644,7 @@ def build_geological_profile_png(data: pd.DataFrame, title: str) -> bytes:
 
     ax.invert_yaxis()
     ax.set_title(title, fontsize=11, weight="semibold", color="#222222", pad=10)
-    ax.set_ylabel("Depth below ground level (m)", fontsize=10, color="#333333")
+    ax.set_ylabel("Depth (m bgl)", fontsize=10, color="#333333")
     ax.set_xticks(range(len(locas)))
     ax.set_xticklabels(locas, rotation=45, ha="right", fontsize=8)
     ax.tick_params(axis="y", colors="#444444", labelsize=9)
@@ -3476,7 +3905,7 @@ def plot_custom_design_lines(
             line_y,
             color=DESIGN_LINE_COLOR,
             linewidth=2.0,
-            linestyle="-" if index == 0 else "--",
+            linestyle="--",
             marker="s",
             markersize=3.0,
             label=line_name,

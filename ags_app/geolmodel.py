@@ -49,13 +49,16 @@ def build_geological_model(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     geol["THICKNESS_NUM"] = geol["GEOL_BASE_NUM"] - geol["GEOL_TOP_NUM"]
     geol = geol.dropna(subset=["LOCA_ID", "GEOL_TOP_NUM", "GEOL_BASE_NUM"]).copy()
 
-    geol["MATERIAL_CLASS"] = geol.apply(
+    calculated_material = geol.apply(
         lambda row: classify_material(row["GEOL_GEOL"], row["GEOL_DESC"]),
         axis=1,
     )
-    geol["BEDROCK_TYPE"] = geol["GEOL_DESC"].map(extract_bedrock_type)
-    geol.loc[geol["MATERIAL_CLASS"] != "Rock / Bedrock", "BEDROCK_TYPE"] = pd.NA
-    geol["MODEL_UNIT"] = geol.apply(build_model_unit, axis=1)
+    geol["MATERIAL_CLASS"] = override_or_calculated(geol, "MATERIAL_CLASS", calculated_material)
+    calculated_bedrock = geol["GEOL_DESC"].map(extract_bedrock_type)
+    calculated_bedrock.loc[geol["MATERIAL_CLASS"] != "Rock / Bedrock"] = pd.NA
+    geol["BEDROCK_TYPE"] = override_or_calculated(geol, "BEDROCK_TYPE", calculated_bedrock)
+    calculated_model_unit = geol.apply(build_model_unit, axis=1)
+    geol["MODEL_UNIT"] = override_or_calculated(geol, "MODEL_UNIT", calculated_model_unit)
     return geol.sort_values(["LOCA_ID", "GEOL_TOP_NUM"]).reset_index(drop=True)
 
 
@@ -66,19 +69,30 @@ def add_geological_model_fields(data: pd.DataFrame) -> pd.DataFrame:
     if "GEOL_DESC" not in data.columns:
         data["GEOL_DESC"] = ""
 
-    data["MATERIAL_CLASS"] = data.apply(
+    calculated_material = data.apply(
         lambda row: "Unmatched"
         if str(row["GEOL_GEOL"]) == "Unmatched"
         else classify_material(row["GEOL_GEOL"], row["GEOL_DESC"]),
         axis=1,
     )
-    data["BEDROCK_TYPE"] = data["GEOL_DESC"].map(extract_bedrock_type)
-    data.loc[data["MATERIAL_CLASS"] != "Rock / Bedrock", "BEDROCK_TYPE"] = pd.NA
-    data["MODEL_UNIT"] = data.apply(
+    data["MATERIAL_CLASS"] = override_or_calculated(data, "MATERIAL_CLASS", calculated_material)
+    calculated_bedrock = data["GEOL_DESC"].map(extract_bedrock_type)
+    calculated_bedrock.loc[data["MATERIAL_CLASS"] != "Rock / Bedrock"] = pd.NA
+    data["BEDROCK_TYPE"] = override_or_calculated(data, "BEDROCK_TYPE", calculated_bedrock)
+    calculated_model_unit = data.apply(
         lambda row: "Unmatched" if str(row["GEOL_GEOL"]) == "Unmatched" else build_model_unit(row),
         axis=1,
     )
+    data["MODEL_UNIT"] = override_or_calculated(data, "MODEL_UNIT", calculated_model_unit)
     return data
+
+
+def override_or_calculated(data: pd.DataFrame, column: str, calculated: pd.Series) -> pd.Series:
+    if column not in data.columns:
+        return calculated
+    overrides = data[column]
+    usable = overrides.notna() & (overrides.astype(str).str.strip() != "")
+    return overrides.where(usable, calculated)
 
 
 def classify_material(unit: object, description: object) -> str:

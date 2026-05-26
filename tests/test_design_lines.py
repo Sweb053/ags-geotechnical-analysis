@@ -1,9 +1,11 @@
 import pandas as pd
 
 from app import (
+    apply_table_edits,
     calculate_design_line,
     calculate_psd_design_line,
     calculate_scalar_summary,
+    dataframe_from_editor_state,
     interpolate_psd_d_value,
     parse_custom_design_lines,
     t_critical_one_sided_95,
@@ -68,6 +70,54 @@ def test_parse_custom_design_lines_can_require_positive_x_values() -> None:
     assert parsed == (("PSD line", ((0.063, 25.0), (2.0, 70.0))),)
 
 
+def test_dataframe_from_editor_state_applies_streamlit_edit_delta() -> None:
+    base = pd.DataFrame(
+        {
+            "GEOL_GEOL": ["ALV(G)", "GT"],
+            "__GEOL_SOURCE_ROW_INDEX": [4, 9],
+        }
+    )
+    state = {"edited_rows": {"0": {"GEOL_GEOL": "ALV - Granular"}}}
+
+    edited = dataframe_from_editor_state(base, state)
+
+    assert edited.loc[0, "GEOL_GEOL"] == "ALV - Granular"
+    assert edited.loc[1, "GEOL_GEOL"] == "GT"
+
+
+def test_apply_table_edits_adds_geology_override_columns() -> None:
+    tables = {
+        "GEOL": pd.DataFrame(
+            [
+                {
+                    "LOCA_ID": "BH01",
+                    "GEOL_TOP": "0",
+                    "GEOL_BASE": "1",
+                    "GEOL_GEOL": "GDU",
+                    "GEOL_DESC": "Grey medium grained psammite boulder.",
+                }
+            ]
+        )
+    }
+    edited = pd.DataFrame(
+        [
+            {
+                "__GEOL_SOURCE_ROW_INDEX": 0,
+                "MATERIAL_CLASS": "Granular",
+                "MODEL_UNIT": "GDU - Granular",
+                "BEDROCK_TYPE": "Manual rock type",
+            }
+        ]
+    )
+
+    updates = apply_table_edits(tables, "GEOL", edited, "__GEOL_SOURCE_ROW_INDEX", geol_only=True)
+
+    assert updates == 1
+    assert tables["GEOL"].loc[0, "MATERIAL_CLASS"] == "Granular"
+    assert tables["GEOL"].loc[0, "MODEL_UNIT"] == "GDU - Granular"
+    assert tables["GEOL"].loc[0, "BEDROCK_TYPE"] == "Manual rock type"
+
+
 def test_calculate_psd_design_line_uses_selected_curves() -> None:
     data = pd.DataFrame(
         {
@@ -101,7 +151,9 @@ def test_calculate_scalar_summary_uses_lower_cautious_estimate() -> None:
 
     assert stats is not None
     assert stats["count"] == 5
+    assert stats["minimum"] == 10
     assert stats["mean"] == 14
+    assert stats["maximum"] == 18
     assert stats["cautious"] < stats["mean"]
     assert stats["cautious"] == stats["lower_95"]
 

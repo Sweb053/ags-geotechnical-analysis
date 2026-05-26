@@ -39,7 +39,9 @@ def test_build_custom_group_summary_rows_creates_one_set_of_stats_per_group() ->
     assert {row["Parameter"] for row in rows} == {"Raw SPT N", "Corrected SPT N60"}
     alluvium_raw = next(row for row in rows if row["Group"] == "Alluvium" and row["Parameter"] == "Raw SPT N")
     assert alluvium_raw["Records"] == 2
+    assert alluvium_raw["Minimum"] == 10
     assert alluvium_raw["Mean"] == 15
+    assert alluvium_raw["Maximum"] == 20
 
 
 def test_build_custom_bre_group_rows_creates_classification_per_group() -> None:
