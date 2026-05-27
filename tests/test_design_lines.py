@@ -3,6 +3,7 @@ import pandas as pd
 from app import (
     apply_table_edits,
     calculate_design_line,
+    calculate_horizontal_depth_design_line,
     calculate_psd_design_line,
     calculate_scalar_summary,
     dataframe_from_editor_state,
@@ -37,6 +38,31 @@ def test_calculate_design_line_returns_none_for_small_dataset() -> None:
     data = pd.DataFrame({"VALUE": [10.0, 12.0], "DEPTH": [1.0, 2.0]})
 
     assert calculate_design_line(data, "VALUE", "DEPTH", "Lower cautious estimate") is None
+
+
+def test_calculate_horizontal_depth_design_line_uses_depth_statistic() -> None:
+    data = pd.DataFrame(
+        {
+            "INVESTIGATION": [1, 2, 3, 4, 5],
+            "DEPTH": [0.8, 1.0, 1.2, 1.6, 2.0],
+        }
+    )
+
+    lower_line = calculate_horizontal_depth_design_line(data, "INVESTIGATION", "DEPTH", "Lower cautious estimate")
+    mean_line = calculate_horizontal_depth_design_line(data, "INVESTIGATION", "DEPTH", "Mean trend")
+    upper_line = calculate_horizontal_depth_design_line(data, "INVESTIGATION", "DEPTH", "Upper cautious estimate")
+
+    assert lower_line is not None
+    assert mean_line is not None
+    assert upper_line is not None
+    lower_x, lower_y, _ = lower_line
+    mean_x, mean_y, _ = mean_line
+    upper_x, upper_y, _ = upper_line
+    assert lower_x == mean_x == upper_x == [1.0, 5.0]
+    assert lower_y[0] == lower_y[1]
+    assert mean_y[0] == mean_y[1]
+    assert upper_y[0] == upper_y[1]
+    assert lower_y[0] < mean_y[0] < upper_y[0]
 
 
 def test_parse_custom_design_lines_groups_multiline_coordinates() -> None:

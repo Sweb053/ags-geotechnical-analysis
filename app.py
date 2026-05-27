@@ -3093,6 +3093,7 @@ def render_groundwater_plot(
         x_label="Investigation",
         y_label="Depth (m bgl)",
         x_tick_labels=tick_labels,
+        design_line_axis="y",
     )
 
 
@@ -3756,6 +3757,7 @@ def render_depth_scatter_plot(
     x_label: str,
     y_label: str,
     x_tick_labels: dict[int, str] | None = None,
+    design_line_axis: str = "x",
 ) -> None:
     if data.empty:
         st.warning("No records match the current filters.")
@@ -3791,6 +3793,7 @@ def render_depth_scatter_plot(
         design_line if show_design_line else "Off",
         x_tick_labels,
         custom_lines,
+        design_line_axis,
     )
     st.image(
         png_bytes,
@@ -3809,10 +3812,16 @@ def render_depth_scatter_plot(
             "Using a separate colour for every investigation would make the graph and legend unreadable."
         )
     if show_design_line and design_line != "Custom line":
-        st.caption(
-            "The design line is recalculated from the records visible in this plot. "
-            "The cautious estimate uses a one-sided 95% confidence bound on the fitted mean trend."
-        )
+        if design_line_axis == "y":
+            st.caption(
+                "The groundwater design line is recalculated from the visible strike depths. "
+                "The lower cautious estimate is the shallower, more conservative groundwater level."
+            )
+        else:
+            st.caption(
+                "The design line is recalculated from the records visible in this plot. "
+                "The cautious estimate uses a one-sided 95% confidence bound on the fitted mean trend."
+            )
     if show_design_line and design_line == "Custom line":
         st.caption("The custom design line is drawn from the coordinate table above and is included in the PNG export.")
 
@@ -3883,6 +3892,7 @@ def build_depth_scatter_png(
     design_line: str = "Off",
     x_tick_labels: dict[int, str] | None = None,
     custom_lines: tuple[tuple[str, tuple[tuple[float, float], ...]], ...] = tuple(),
+    design_line_axis: str = "x",
 ) -> bytes:
     fig, ax = plt.subplots(figsize=(8.2, 5.8), dpi=150)
     fig.patch.set_facecolor("white")
@@ -3915,7 +3925,10 @@ def build_depth_scatter_png(
                 label=str(category),
             )
 
-    line = calculate_design_line(data, x_column, y_column, design_line)
+    if design_line_axis == "y":
+        line = calculate_horizontal_depth_design_line(data, x_column, y_column, design_line)
+    else:
+        line = calculate_design_line(data, x_column, y_column, design_line)
     if line is not None:
         line_x, line_y, label = line
         ax.plot(
@@ -4055,6 +4068,41 @@ def calculate_design_line(
         return None
 
     return line_x, line_y, design_line_label(design_line)
+
+
+def calculate_horizontal_depth_design_line(
+    data: pd.DataFrame,
+    x_column: str,
+    y_column: str,
+    design_line: str,
+) -> tuple[list[float], list[float], str] | None:
+    if design_line == "Off":
+        return None
+
+    clean = data[[x_column, y_column]].dropna().copy()
+    if len(clean) < 3:
+        return None
+
+    summary = calculate_scalar_summary(clean[y_column], "lower")
+    if summary is None:
+        return None
+
+    if design_line == "Lower cautious estimate":
+        depth_value = float(summary["lower_95"])
+    elif design_line == "Upper cautious estimate":
+        depth_value = float(summary["upper_95"])
+    elif design_line == "Mean trend":
+        depth_value = float(summary["mean"])
+    else:
+        return None
+
+    x_min = float(clean[x_column].astype(float).min())
+    x_max = float(clean[x_column].astype(float).max())
+    if math.isclose(x_min, x_max):
+        x_min -= 0.5
+        x_max += 0.5
+
+    return [x_min, x_max], [depth_value, depth_value], design_line_label(design_line)
 
 
 def design_line_label(design_line: str) -> str:
