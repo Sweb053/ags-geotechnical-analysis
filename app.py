@@ -1640,7 +1640,7 @@ def render_summary_stats_module(module_tables: dict[str, pd.DataFrame | None]) -
     st.dataframe(summary, use_container_width=True, hide_index=True)
     st.caption(
         "Cautious estimates are calculated from all filtered values as one population. "
-        "They are not depth trend estimates."
+        "They are not depth trend estimates. Lower estimates for non-negative test values are floored at zero."
     )
 
     csv_bytes = summary.to_csv(index=False).encode("utf-8")
@@ -1696,6 +1696,10 @@ def summary_parameter_definitions(module_name: str) -> list[dict[str, str]]:
             {"label": "D10", "column": "PSD_D10_NUM", "unit": "mm", "side": "lower"},
             {"label": "D30", "column": "PSD_D30_NUM", "unit": "mm", "side": "lower"},
             {"label": "D60", "column": "PSD_D60_NUM", "unit": "mm", "side": "lower"},
+            {"label": "Fines - clay and silt", "column": "PSD_FINES_PERCENT_NUM", "unit": "%", "side": "upper"},
+            {"label": "Sand", "column": "PSD_SAND_PERCENT_NUM", "unit": "%", "side": "upper"},
+            {"label": "Gravel", "column": "PSD_GRAVEL_PERCENT_NUM", "unit": "%", "side": "upper"},
+            {"label": "Cobbles", "column": "PSD_COBBLES_PERCENT_NUM", "unit": "%", "side": "upper"},
         ],
     }
     return definitions.get(module_name, [])
@@ -1874,6 +1878,9 @@ def calculate_scalar_summary(values: pd.Series, cautious_side: str = "lower") ->
         upper = mean_value + width
         std_dev = std_dev_value
 
+    if minimum_value >= 0 and lower < 0:
+        lower = 0.0
+
     cautious = upper if cautious_side == "upper" else lower
     return {
         "count": count,
@@ -1902,6 +1909,14 @@ def build_psd_summary_values(data: pd.DataFrame) -> pd.DataFrame:
         row["PSD_SAMPLE_ID"] = curve_id
         for percent in (10, 30, 60):
             row[f"PSD_D{percent}_NUM"] = interpolate_psd_d_value(sorted_group, percent)
+        fines_percent = interpolate_psd_percent_passing(sorted_group, 0.063)
+        sand_upper_percent = interpolate_psd_percent_passing(sorted_group, 2.0)
+        gravel_upper_percent = interpolate_psd_percent_passing(sorted_group, 63.0)
+        if fines_percent is not None and sand_upper_percent is not None and gravel_upper_percent is not None:
+            row["PSD_FINES_PERCENT_NUM"] = round(fines_percent, 3)
+            row["PSD_SAND_PERCENT_NUM"] = round(max(sand_upper_percent - fines_percent, 0.0), 3)
+            row["PSD_GRAVEL_PERCENT_NUM"] = round(max(gravel_upper_percent - sand_upper_percent, 0.0), 3)
+            row["PSD_COBBLES_PERCENT_NUM"] = round(max(100.0 - gravel_upper_percent, 0.0), 3)
         rows.append(row)
     return pd.DataFrame(rows)
 
@@ -1931,6 +1946,43 @@ def interpolate_psd_d_value(curve: pd.DataFrame, percent_passing: float) -> floa
             fraction = (percent_passing - lower_passing) / (upper_passing - lower_passing)
             log_size = math.log10(lower_size) + fraction * (math.log10(upper_size) - math.log10(lower_size))
             return 10**log_size
+    return None
+
+
+def interpolate_psd_percent_passing(curve: pd.DataFrame, particle_size: float) -> float | None:
+    points = curve[["GRAT_SIZE_NUM", "GRAT_PERP_NUM"]].dropna().copy()
+    points["GRAT_SIZE_NUM"] = pd.to_numeric(points["GRAT_SIZE_NUM"], errors="coerce")
+    points["GRAT_PERP_NUM"] = pd.to_numeric(points["GRAT_PERP_NUM"], errors="coerce")
+    points = points.dropna()
+    points = points[points["GRAT_SIZE_NUM"] > 0].drop_duplicates("GRAT_SIZE_NUM")
+    points = points.sort_values("GRAT_SIZE_NUM")
+    if points.empty or particle_size <= 0:
+        return None
+
+    sizes = points["GRAT_SIZE_NUM"].astype(float).tolist()
+    passing = points["GRAT_PERP_NUM"].astype(float).tolist()
+    if particle_size <= sizes[0]:
+        return min(max(passing[0], 0.0), 100.0)
+    if particle_size >= sizes[-1]:
+        return min(max(passing[-1], 0.0), 100.0)
+
+    target_log = math.log10(particle_size)
+    for index, upper_size in enumerate(sizes):
+        if math.isclose(particle_size, upper_size):
+            return min(max(passing[index], 0.0), 100.0)
+        if index == 0:
+            continue
+        lower_size = sizes[index - 1]
+        if lower_size <= particle_size <= upper_size:
+            lower_log = math.log10(lower_size)
+            upper_log = math.log10(upper_size)
+            lower_passing = passing[index - 1]
+            upper_passing = passing[index]
+            if math.isclose(lower_log, upper_log):
+                return min(max(lower_passing, 0.0), 100.0)
+            ratio = (target_log - lower_log) / (upper_log - lower_log)
+            interpolated = lower_passing + ratio * (upper_passing - lower_passing)
+            return min(max(interpolated, 0.0), 100.0)
     return None
 
 
@@ -4173,7 +4225,7 @@ def build_psd_png(
     ax.set_facecolor("white")
 
     curve_ids = [curve_id for curve_id in sorted(data["PSD_SAMPLE_ID"].dropna().unique())]
-    show_legend = 1 < len(curve_ids) <= 12
+    show_legend = False
 
     for index, curve_id in enumerate(curve_ids):
         group = data[data["PSD_SAMPLE_ID"] == curve_id].sort_values("GRAT_SIZE_NUM")
@@ -4185,7 +4237,7 @@ def build_psd_png(
             linewidth=1.25,
             color=SCIENTIFIC_PALETTE[index % len(SCIENTIFIC_PALETTE)],
             alpha=0.9,
-            label=str(curve_id),
+            label="_nolegend_",
         )
 
     statistical_curve = calculate_psd_design_line(data, design_line)

@@ -2,6 +2,7 @@ import pandas as pd
 
 from app import (
     apply_table_edits,
+    build_psd_summary_values,
     calculate_design_line,
     calculate_horizontal_depth_design_line,
     calculate_psd_design_line,
@@ -166,6 +167,24 @@ def test_calculate_psd_design_line_uses_selected_curves() -> None:
     assert lower_y[1] <= mean_y[1]
 
 
+def test_build_psd_summary_values_calculates_soil_fraction_percentages() -> None:
+    data = pd.DataFrame(
+        {
+            "LOCA_ID": ["BH01", "BH01", "BH01", "BH01"],
+            "PSD_SAMPLE_ID": ["BH01 @ 1.0m"] * 4,
+            "GRAT_SIZE_NUM": [0.002, 0.063, 2.0, 63.0],
+            "GRAT_PERP_NUM": [5.0, 20.0, 70.0, 95.0],
+        }
+    )
+
+    summary = build_psd_summary_values(data)
+
+    assert summary.loc[0, "PSD_FINES_PERCENT_NUM"] == 20.0
+    assert summary.loc[0, "PSD_SAND_PERCENT_NUM"] == 50.0
+    assert summary.loc[0, "PSD_GRAVEL_PERCENT_NUM"] == 25.0
+    assert summary.loc[0, "PSD_COBBLES_PERCENT_NUM"] == 5.0
+
+
 def test_t_critical_one_sided_95_uses_large_sample_normal_limit() -> None:
     assert t_critical_one_sided_95(200) == 1.645
 
@@ -182,6 +201,17 @@ def test_calculate_scalar_summary_uses_lower_cautious_estimate() -> None:
     assert stats["maximum"] == 18
     assert stats["cautious"] < stats["mean"]
     assert stats["cautious"] == stats["lower_95"]
+
+
+def test_calculate_scalar_summary_floors_positive_lower_estimate_at_zero() -> None:
+    values = pd.Series([0.2, 0.3, 5.0])
+
+    stats = calculate_scalar_summary(values, "lower")
+
+    assert stats is not None
+    assert stats["minimum"] == 0.2
+    assert stats["lower_95"] == 0.0
+    assert stats["cautious"] == 0.0
 
 
 def test_calculate_scalar_summary_can_use_upper_cautious_estimate() -> None:
