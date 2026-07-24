@@ -1613,6 +1613,23 @@ def render_summary_stats_module(module_tables: dict[str, pd.DataFrame | None]) -
         st.warning("No valid test data is available for summary statistics.")
         return
 
+    st.subheader("Model Unit Summary Report")
+    report_rows = build_model_unit_summary_report_rows(module_tables)
+    if report_rows:
+        report_pdf = build_model_unit_summary_pdf(report_rows)
+        st.download_button(
+            "Download model unit summary PDF",
+            data=report_pdf,
+            file_name="model_unit_summary_stats_report.pdf",
+            mime="application/pdf",
+            type="primary",
+        )
+        with st.expander("Preview model unit report table"):
+            st.dataframe(pd.DataFrame(report_rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("No model-unit matched records are available for the all-module PDF report.")
+
+    st.divider()
     selected_module = st.selectbox("Test module", list(available), index=0)
     data = available[selected_module].copy()
 
@@ -1656,6 +1673,210 @@ def render_summary_stats_module(module_tables: dict[str, pd.DataFrame | None]) -
         st.dataframe(filtered[display_columns], use_container_width=True, hide_index=True)
 
     render_custom_summary_groups(selected_module, data, selected_loca, selected_materials, selected_bedrock)
+
+
+def build_model_unit_summary_report_rows(module_tables: dict[str, pd.DataFrame | None]) -> list[dict[str, object]]:
+    model_units = sorted(
+        {
+            str(value).strip()
+            for table in module_tables.values()
+            if table is not None and not table.empty and "MODEL_UNIT" in table.columns
+            for value in table["MODEL_UNIT"].dropna().astype(str)
+            if str(value).strip()
+        }
+    )
+    if not model_units:
+        return []
+
+    rows: list[dict[str, object]] = []
+    for model_unit in model_units:
+        for module_name, table in module_tables.items():
+            definitions = summary_parameter_definitions(module_name)
+            if not definitions:
+                continue
+            if table is None or table.empty:
+                matching = pd.DataFrame()
+            elif module_name == "Particle Size Distribution":
+                module_summary_data = build_psd_summary_values(table)
+                if "MODEL_UNIT" not in module_summary_data.columns:
+                    matching = pd.DataFrame()
+                else:
+                    matching = module_summary_data[module_summary_data["MODEL_UNIT"].astype(str).str.strip() == model_unit].copy()
+            elif "MODEL_UNIT" not in table.columns:
+                matching = pd.DataFrame()
+            else:
+                matching = table[table["MODEL_UNIT"].astype(str).str.strip() == model_unit].copy()
+            for parameter in definitions:
+                rows.append(build_model_unit_summary_report_row(model_unit, module_name, matching, parameter))
+    return rows
+
+
+def build_model_unit_summary_report_row(
+    model_unit: str,
+    module_name: str,
+    data: pd.DataFrame,
+    parameter: dict[str, str],
+) -> dict[str, object]:
+    blank_row = {
+        "Model Unit": model_unit,
+        "Module": module_name,
+        "Parameter": parameter["label"],
+        "Unit": parameter["unit"] or "-",
+        "Records": "-",
+        "Minimum": "-",
+        "Mean": "-",
+        "Maximum": "-",
+        "Lower 95% Estimate": "-",
+        "Upper 95% Estimate": "-",
+        "Cautious Estimate": "-",
+        "Cautious Side": parameter["side"].title(),
+    }
+    column = parameter["column"]
+    if data.empty or column not in data.columns:
+        return blank_row
+
+    stats = calculate_scalar_summary(data[column], parameter["side"])
+    if stats is None:
+        return blank_row
+
+    blank_row.update(
+        {
+            "Records": stats["count"],
+            "Minimum": stats["minimum"],
+            "Mean": stats["mean"],
+            "Maximum": stats["maximum"],
+            "Lower 95% Estimate": stats["lower_95"],
+            "Upper 95% Estimate": stats["upper_95"],
+            "Cautious Estimate": stats["cautious"],
+            "Cautious Side": stats["side"],
+        }
+    )
+    return blank_row
+
+
+def build_model_unit_summary_pdf(rows: list[dict[str, object]]) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    buffer = BytesIO()
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        rightMargin=12 * mm,
+        leftMargin=12 * mm,
+        topMargin=12 * mm,
+        bottomMargin=12 * mm,
+        title="Model Unit Summary Stats Report",
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "ReportTitle",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=16,
+        leading=20,
+        textColor=colors.HexColor("#1f1f1f"),
+        spaceAfter=8,
+    )
+    subtitle_style = ParagraphStyle(
+        "ReportSubtitle",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=8,
+        leading=11,
+        textColor=colors.HexColor("#555555"),
+        spaceAfter=10,
+    )
+    unit_style = ParagraphStyle(
+        "ModelUnit",
+        parent=styles["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=11,
+        leading=14,
+        textColor=colors.HexColor("#1f1f1f"),
+        spaceBefore=8,
+        spaceAfter=5,
+    )
+    header_style = ParagraphStyle(
+        "TableHeader",
+        parent=styles["BodyText"],
+        alignment=TA_CENTER,
+        fontName="Helvetica-Bold",
+        fontSize=6.8,
+        leading=8,
+        textColor=colors.white,
+    )
+    cell_style = ParagraphStyle(
+        "TableCell",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=6.5,
+        leading=7.5,
+        textColor=colors.HexColor("#222222"),
+    )
+    story: list[object] = [
+        Paragraph("Model Unit Summary Stats Report", title_style),
+        Paragraph(
+            "Statistics are calculated per model unit from the currently loaded AGS dataset. "
+            "A dash indicates that no valid values were available for that model unit and parameter.",
+            subtitle_style,
+        ),
+    ]
+
+    columns = [
+        "Module",
+        "Parameter",
+        "Unit",
+        "Records",
+        "Minimum",
+        "Mean",
+        "Maximum",
+        "Lower 95% Estimate",
+        "Upper 95% Estimate",
+        "Cautious Estimate",
+        "Cautious Side",
+    ]
+    column_widths = [27 * mm, 35 * mm, 15 * mm, 16 * mm, 19 * mm, 19 * mm, 19 * mm, 24 * mm, 24 * mm, 24 * mm, 20 * mm]
+    report_data = pd.DataFrame(rows)
+    model_units = report_data["Model Unit"].dropna().astype(str).drop_duplicates().tolist()
+    for index, model_unit in enumerate(model_units):
+        if index:
+            story.append(PageBreak())
+        story.append(Paragraph(f"Model Unit: {html.escape(model_unit)}", unit_style))
+        unit_rows = report_data[report_data["Model Unit"].astype(str) == model_unit]
+        table_data = [[Paragraph(column, header_style) for column in columns]]
+        for _, row in unit_rows.iterrows():
+            table_data.append([Paragraph(format_report_cell(row.get(column, "-")), cell_style) for column in columns])
+        table = Table(table_data, colWidths=column_widths, repeatRows=1, hAlign="LEFT")
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#3a3a3a")),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#d0d0d0")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f6f7f9")]),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 3),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ]
+            )
+        )
+        story.append(table)
+        story.append(Spacer(1, 6))
+
+    document.build(story)
+    return buffer.getvalue()
+
+
+def format_report_cell(value: object) -> str:
+    if value is None or pd.isna(value):
+        return "-"
+    return html.escape(str(value))
 
 
 def summary_parameter_definitions(module_name: str) -> list[dict[str, str]]:
