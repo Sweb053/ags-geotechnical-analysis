@@ -1614,20 +1614,39 @@ def render_summary_stats_module(module_tables: dict[str, pd.DataFrame | None]) -
         return
 
     st.subheader("Model Unit Summary Report")
-    report_rows = build_model_unit_summary_report_rows(module_tables)
-    if report_rows:
-        report_pdf = build_model_unit_summary_pdf(report_rows)
+    st.caption(
+        "Generate a PDF matrix of every model unit against every supported test parameter. "
+        "The report is built only when requested so this page stays responsive for large AGS files."
+    )
+    report_signature = summary_report_signature()
+    stored_signature = st.session_state.get("summary_report_signature")
+    if stored_signature != report_signature:
+        st.session_state.pop("summary_report_pdf", None)
+        st.session_state.pop("summary_report_rows", None)
+        st.session_state["summary_report_signature"] = report_signature
+
+    if st.button("Generate PDF report", type="primary"):
+        with st.spinner("Building model unit summary PDF report..."):
+            report_rows = build_model_unit_summary_report_rows(module_tables)
+            if report_rows:
+                st.session_state["summary_report_rows"] = report_rows
+                st.session_state["summary_report_pdf"] = build_model_unit_summary_pdf(report_rows)
+            else:
+                st.session_state.pop("summary_report_rows", None)
+                st.session_state.pop("summary_report_pdf", None)
+                st.warning("No model-unit matched records are available for the all-module PDF report.")
+
+    report_pdf = st.session_state.get("summary_report_pdf")
+    report_rows = st.session_state.get("summary_report_rows", [])
+    if report_pdf:
         st.download_button(
             "Download model unit summary PDF",
             data=report_pdf,
             file_name="model_unit_summary_stats_report.pdf",
             mime="application/pdf",
-            type="primary",
         )
         with st.expander("Preview model unit report table"):
             st.dataframe(pd.DataFrame(report_rows), use_container_width=True, hide_index=True)
-    else:
-        st.info("No model-unit matched records are available for the all-module PDF report.")
 
     st.divider()
     selected_module = st.selectbox("Test module", list(available), index=0)
@@ -1673,6 +1692,13 @@ def render_summary_stats_module(module_tables: dict[str, pd.DataFrame | None]) -
         st.dataframe(filtered[display_columns], use_container_width=True, hide_index=True)
 
     render_custom_summary_groups(selected_module, data, selected_loca, selected_materials, selected_bedrock)
+
+
+def summary_report_signature() -> str:
+    source_name = str(st.session_state.get("ags_source_name", ""))
+    content = st.session_state.get("ags_content", b"")
+    content_size_bytes = len(content) if isinstance(content, bytes) else 0
+    return f"{source_name}:{content_size_bytes}"
 
 
 def build_model_unit_summary_report_rows(module_tables: dict[str, pd.DataFrame | None]) -> list[dict[str, object]]:
